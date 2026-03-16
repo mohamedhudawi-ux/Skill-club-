@@ -1,0 +1,7 @@
+{
+  "name": "SAFA Students Union Portal",
+  "description": "A comprehensive web portal for SAFA Students Union featuring role-based access, SkillClub performance tracking, calendar management, and gallery.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

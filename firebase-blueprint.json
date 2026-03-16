@@ -1,0 +1,247 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Base user profile for all roles.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["student", "staff", "safa", "admin"] },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "admissionNumber": { "type": "string", "description": "Only for students" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Detailed student information.",
+      "type": "object",
+      "properties": {
+        "admissionNumber": { "type": "string" },
+        "name": { "type": "string" },
+        "dob": { "type": "string" },
+        "fatherName": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "class": { "type": "string" },
+        "totalPoints": { "type": "number" },
+        "categoryPoints": {
+          "type": "object",
+          "description": "Map of category names to points"
+        }
+      },
+      "required": ["admissionNumber", "name"]
+    },
+    "Club": {
+      "title": "Club",
+      "description": "A student club.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "logoUrl": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "ClubMember": {
+      "title": "Club Member",
+      "description": "A member of a club.",
+      "type": "object",
+      "properties": {
+        "clubId": { "type": "string" },
+        "name": { "type": "string" },
+        "position": { "type": "string" },
+        "photoUrl": { "type": "string" }
+      },
+      "required": ["clubId", "name", "position"]
+    },
+    "Board": {
+      "title": "Board",
+      "description": "A Safa board.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "BoardMember": {
+      "title": "Board Member",
+      "description": "A member of a board.",
+      "type": "object",
+      "properties": {
+        "boardId": { "type": "string" },
+        "name": { "type": "string" },
+        "position": { "type": "string" },
+        "photoUrl": { "type": "string" }
+      },
+      "required": ["boardId", "name", "position"]
+    },
+    "WorkSubmission": {
+      "title": "Work Submission",
+      "description": "Student work submitted for points.",
+      "type": "object",
+      "properties": {
+        "studentAdmissionNumber": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "pointsAwarded": { "type": "number" },
+        "reviewedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentAdmissionNumber", "title", "fileUrl", "status"]
+    },
+    "OfficeBearer": {
+      "title": "Office Bearer",
+      "description": "A union office bearer.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "position": { "type": "string" },
+        "photoUrl": { "type": "string" }
+      },
+      "required": ["name", "position"]
+    },
+    "SiteContent": {
+      "title": "Site Content",
+      "description": "Editable site content.",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "value": { "type": "string" }
+      },
+      "required": ["key", "value"]
+    },
+    "SkillClubEntry": {
+      "title": "SkillClub Entry",
+      "description": "A record of student performance in a program.",
+      "type": "object",
+      "properties": {
+        "studentAdmissionNumber": { "type": "string" },
+        "category": { "type": "string" },
+        "points": { "type": "number" },
+        "description": { "type": "string" },
+        "addedBy": { "type": "string", "description": "UID of staff/safa/admin" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentAdmissionNumber", "category", "points"]
+    },
+    "Program": {
+      "title": "Program",
+      "description": "A calendar event or program.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "description": { "type": "string" },
+        "addedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "date"]
+    },
+    "GalleryItem": {
+      "title": "Gallery Item",
+      "description": "An image uploaded to the gallery.",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "caption": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["url"]
+    },
+    "Query": {
+      "title": "Student Query",
+      "description": "Queries sent by students to admins.",
+      "type": "object",
+      "properties": {
+        "studentUid": { "type": "string" },
+        "studentName": { "type": "string" },
+        "message": { "type": "string" },
+        "voiceUrl": { "type": "string" },
+        "reply": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "replied"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentUid", "timestamp", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System notifications for users.",
+      "type": "object",
+      "properties": {
+        "recipientUid": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["recipientUid", "title", "message", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/students/{admissionNumber}": {
+      "schema": "Student",
+      "description": "Student details"
+    },
+    "/skillClubEntries/{entryId}": {
+      "schema": "SkillClubEntry",
+      "description": "SkillClub performance records"
+    },
+    "/programs/{programId}": {
+      "schema": "Program",
+      "description": "Calendar programs"
+    },
+    "/gallery/{itemId}": {
+      "schema": "GalleryItem",
+      "description": "Gallery images"
+    },
+    "/clubs/{clubId}": {
+      "schema": "Club",
+      "description": "Student clubs"
+    },
+    "/clubMembers/{memberId}": {
+      "schema": "ClubMember",
+      "description": "Club members"
+    },
+    "/boards/{boardId}": {
+      "schema": "Board",
+      "description": "Safa boards"
+    },
+    "/boardMembers/{memberId}": {
+      "schema": "BoardMember",
+      "description": "Board members"
+    },
+    "/workSubmissions/{submissionId}": {
+      "schema": "WorkSubmission",
+      "description": "Student work submissions"
+    },
+    "/officeBearers/{bearerId}": {
+      "schema": "OfficeBearer",
+      "description": "Union office bearers"
+    },
+    "/siteContent/{contentId}": {
+      "schema": "SiteContent",
+      "description": "Site content settings"
+    },
+    "/queries/{queryId}": {
+      "schema": "Query",
+      "description": "Student queries"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications"
+    }
+  }
+}

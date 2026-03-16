@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // User: uid, email, role (student, staff, safa, admin), admissionNumber?
+    // Student: admissionNumber, name, dob, fatherName, address, phone, email, photoURL, class, totalPoints, categoryPoints
+    // SkillClubEntry: studentAdmissionNumber, category, points, description, addedBy, timestamp
+    // Program: title, date, description, addedBy, timestamp
+    // GalleryItem: url, caption, uploadedBy, timestamp
+    // Club: name, description, logoUrl
+    // ClubMember: clubId, name, position, photoUrl
+    // Board: name, description
+    // BoardMember: boardId, name, position, photoUrl
+    // WorkSubmission: studentAdmissionNumber, title, description, fileUrl, status, pointsAwarded, reviewedBy, timestamp
+    // OfficeBearer: name, position, photoUrl
+    // SiteContent: key, value
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function hasRole(role) {
+      return isAuthenticated() && getUserData().role == role;
+    }
+    
+    function isAdmin() {
+      return hasRole('admin') || (request.auth.token.email == "mdthaha213@gmail.com" && request.auth.token.email_verified == true);
+    }
+    
+    function isStaff() {
+      return hasRole('staff') || isAdmin();
+    }
+    
+    function isSafa() {
+      return hasRole('safa') || isAdmin();
+    }
+
+    function isStudent() {
+      return hasRole('student');
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isStudentOwner(admissionNumber) {
+      return isAuthenticated() && getUserData().role == 'student' && getUserData().admissionNumber == admissionNumber;
+    }
+
+    // Validation Functions
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.role in ['student', 'staff', 'safa', 'admin'];
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['admissionNumber', 'name']) &&
+             data.admissionNumber is string && data.admissionNumber.size() > 0;
+    }
+
+    function isValidSkillClubEntry(data) {
+      return data.keys().hasAll(['studentAdmissionNumber', 'category', 'points']) &&
+             data.points is number;
+    }
+
+    // Rules
+    
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || isOwner(uid);
+      allow update: if isAdmin() || (isOwner(uid) && request.resource.data.role == resource.data.role);
+    }
+    
+    match /students/{admissionNumber} {
+      allow read: if isAuthenticated();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+    
+    match /skillClubEntries/{entryId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaff() || isSafa();
+      allow update, delete: if isAdmin();
+    }
+    
+    match /programs/{programId} {
+      allow read: if true; // Public view
+      allow create, update: if isSafa() || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    match /gallery/{itemId} {
+      allow read: if true; // Public view
+      allow create: if isStaff() || isSafa() || isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    match /clubs/{clubId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /clubMembers/{memberId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /boards/{boardId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /boardMembers/{memberId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /workSubmissions/{submissionId} {
+      allow read: if isAdmin() || isStaff() || isSafa() || (isAuthenticated() && isStudentOwner(resource.data.studentAdmissionNumber));
+      allow create: if isAuthenticated() && isStudent() && request.resource.data.studentAdmissionNumber == getUserData().admissionNumber;
+      allow update: if (isAdmin() || isStaff() || isSafa()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'pointsAwarded', 'reviewedBy']);
+      allow delete: if isAdmin();
+    }
+
+    match /officeBearers/{bearerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /siteContent/{contentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /queries/{queryId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.studentUid == request.auth.uid);
+      allow create: if isAuthenticated() && isStudent() && request.resource.data.studentUid == request.auth.uid;
+      allow update: if isAdmin() || (isAuthenticated() && isOwner(resource.data.studentUid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['message', 'voiceUrl']));
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.recipientUid == request.auth.uid;
+      allow create: if isStaff() || isSafa() || isAdmin();
+      allow update: if isAuthenticated() && resource.data.recipientUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.recipientUid == request.auth.uid);
+    }
+  }
+}
