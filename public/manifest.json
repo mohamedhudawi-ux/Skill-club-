@@ -1,0 +1,8 @@
+{
+  "name": "Skill Club",
+  "short_name": "SkillClub",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#059669"
+}

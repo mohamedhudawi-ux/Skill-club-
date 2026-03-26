@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, limit, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { GalleryItem } from '../types';
 import { useAuth } from '../AuthContext';
-import { Upload, Plus, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, Plus, X, Image as ImageIcon, Maximize2, Trash2 } from 'lucide-react';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
+import { GalleryViewer } from '../components/GalleryViewer';
 
 export default function Gallery() {
   const { isStaff, isSafa, isAdmin, profile } = useAuth();
@@ -11,14 +14,23 @@ export default function Gallery() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newImage, setNewImage] = useState({ url: '', caption: '' });
   const [loading, setLoading] = useState(true);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   useEffect(() => {
-    const q = query(collection(db, 'gallery'), orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GalleryItem)));
-      setLoading(false);
-    });
-    return unsubscribe;
+    const fetchGallery = async () => {
+      try {
+        setLoading(true);
+        const q = query(collection(db, 'gallery'), orderBy('timestamp', 'desc'), limit(24));
+        const snapshot = await getDocs(q);
+        setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GalleryItem)));
+      } catch (error) {
+        console.error("Gallery fetch error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGallery();
   }, []);
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -31,28 +43,59 @@ export default function Gallery() {
       });
       setIsModalOpen(false);
       setNewImage({ url: '', caption: '' });
+      // Refresh gallery
+      const q = query(collection(db, 'gallery'), orderBy('timestamp', 'desc'), limit(24));
+      const snapshot = await getDocs(q);
+      setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GalleryItem)));
     } catch (error) {
       console.error('Upload failed:', error);
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this photo?')) {
+      try {
+        await deleteDoc(doc(db, 'gallery', id));
+        setItems(items.filter(item => item.id !== id));
+      } catch (error) {
+        console.error('Delete failed:', error);
+      }
+    }
+  };
+
   const canUpload = isStaff || isSafa || isAdmin;
+
+  useEffect(() => {
+    console.log("Gallery Auth Debug:", { isStaff, isSafa, isAdmin, profile });
+  }, [isStaff, isSafa, isAdmin, profile]);
 
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-black text-stone-900">Gallery</h2>
-          <p className="text-stone-500">Capturing moments from SAFA activities.</p>
+          <p className="text-stone-500">Capturing moments from Safa Union activities.</p>
         </div>
-        {canUpload && (
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-emerald-800 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-900 transition-all shadow-lg shadow-emerald-900/20"
-          >
-            <Plus size={20} /> Upload Photo
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {items.length > 0 && (
+            <Button 
+              variant="ghost" 
+              onClick={() => { setViewerIndex(0); setViewerOpen(true); }}
+              className="flex items-center gap-2"
+            >
+              <ImageIcon size={20} /> Start Slideshow
+            </Button>
+          )}
+          {canUpload && (
+            <Button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Plus size={20} /> Upload Photo
+            </Button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -61,11 +104,28 @@ export default function Gallery() {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {items.map((item) => (
-            <div key={item.id} className="group relative aspect-square rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300">
+          {items.map((item, idx) => (
+            <div 
+              key={item.id} 
+              onClick={() => { setViewerIndex(idx); setViewerOpen(true); }}
+              className="group relative aspect-square rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer"
+            >
               <img src={item.url} alt={item.caption} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl text-white scale-90 group-hover:scale-100 transition-transform">
+                  <Maximize2 size={24} />
+                </div>
+                {canUpload && (
+                  <button 
+                    onClick={(e) => handleDelete(e, item.id)}
+                    className="p-3 bg-red-500/80 backdrop-blur-md rounded-2xl text-white scale-90 group-hover:scale-100 transition-transform hover:bg-red-600"
+                  >
+                    <Trash2 size={24} />
+                  </button>
+                )}
+              </div>
               {item.caption && (
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                   <p className="text-white text-sm font-medium">{item.caption}</p>
                 </div>
               )}
@@ -74,17 +134,31 @@ export default function Gallery() {
         </div>
       )}
 
+      {/* Gallery Viewer */}
+      <GalleryViewer 
+        items={items}
+        isOpen={viewerOpen}
+        initialIndex={viewerIndex}
+        onClose={() => setViewerOpen(false)}
+        onDelete={canUpload ? (id) => {
+          // We need to close the viewer if the item is deleted
+          setViewerOpen(false);
+          // We need to simulate the event for handleDelete
+          handleDelete({ stopPropagation: () => {} } as React.MouseEvent, id);
+        } : undefined}
+      />
+
       {/* Upload Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+          <Card className="w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-stone-900 flex items-center gap-2">
                 <Upload className="text-emerald-600" /> Upload to Gallery
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-stone-100 rounded-full">
+              <Button onClick={() => setIsModalOpen(false)} variant="ghost" className="p-2 hover:bg-stone-100 rounded-full">
                 <X size={24} />
-              </button>
+              </Button>
             </div>
             <form onSubmit={handleUpload} className="space-y-4">
               <div>
@@ -117,11 +191,11 @@ export default function Gallery() {
                   </div>
                 )}
               </div>
-              <button type="submit" className="w-full bg-emerald-800 text-white py-3 rounded-xl font-bold hover:bg-emerald-900 transition-colors mt-4">
+              <Button type="submit" className="w-full mt-4 py-3">
                 Confirm Upload
-              </button>
+              </Button>
             </form>
-          </div>
+          </Card>
         </div>
       )}
     </div>

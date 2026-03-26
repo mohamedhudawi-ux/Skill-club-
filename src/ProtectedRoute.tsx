@@ -9,7 +9,7 @@ export default function ProtectedRoute({
   children: React.ReactNode; 
   requiredRole?: string 
 }) {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, isAdmin, isStaff, isSafa, isStudent, isAcademic } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -24,7 +24,17 @@ export default function ProtectedRoute({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && profile?.role !== requiredRole && profile?.role !== 'admin') {
+  const hasAccess = () => {
+    if (isAdmin) return true;
+    if (requiredRole === 'admin') return isAdmin;
+    if (requiredRole === 'staff') return isStaff;
+    if (requiredRole === 'academic') return isAcademic || isStaff;
+    if (requiredRole === 'safa') return isSafa;
+    if (requiredRole === 'student') return isStudent;
+    return true;
+  };
+
+  if (requiredRole && !hasAccess()) {
     return <Navigate to="/" replace />;
   }
 

@@ -87,6 +87,19 @@ export const BulkUpload: React.FC = () => {
       </div>
 
       <div className="space-y-4">
+        <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+          <h4 className="text-sm font-bold text-indigo-900 mb-2">Import Details & Format</h4>
+          <p className="text-xs text-indigo-700 leading-relaxed mb-3">
+            To import students in bulk, please use a CSV file with the following headers in the exact order:
+          </p>
+          <div className="bg-white/50 p-3 rounded-lg font-mono text-[10px] text-indigo-800 border border-indigo-200 overflow-x-auto whitespace-nowrap">
+            admissionNumber, name, dob, fatherName, address, phone, email, class
+          </div>
+          <p className="text-[10px] text-indigo-500 mt-2 italic">
+            * admissionNumber is required and must be unique. Date of Birth should be in YYYY-MM-DD format.
+          </p>
+        </div>
+
         <div className="border-2 border-dashed border-black/10 rounded-2xl p-8 text-center hover:border-indigo-500 transition-colors cursor-pointer relative">
           <input
             type="file"

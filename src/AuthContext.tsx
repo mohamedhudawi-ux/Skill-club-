@@ -12,6 +12,7 @@ interface AuthContextType {
   isStaff: boolean;
   isSafa: boolean;
   isStudent: boolean;
+  isAcademic: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,45 +30,96 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         
         if (userDoc.exists()) {
-          setProfile(userDoc.data() as UserProfile);
-        } else {
-          // Check if a profile was manually added by Admin with this email
-          const q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
-          const querySnapshot = await getDocs(q);
+          const data = userDoc.data() as UserProfile;
+          // Ensure safa@skill.edu has safa role and mdthaha213@gmail.com has admin role
+          const isAdminEmail = firebaseUser.email === 'mdthaha213@gmail.com' || firebaseUser.email === 'admin@skill.edu';
+          const isSafaEmail = firebaseUser.email === 'safa@skill.edu' || firebaseUser.email?.endsWith('@safa.edu');
+          const isStaffEmail = firebaseUser.email?.endsWith('@staff.edu') || ['sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'].includes(firebaseUser.email || '');
+          const isSkillEduEmail = firebaseUser.email?.endsWith('@skill.edu');
           
-          if (!querySnapshot.empty) {
-            // Found a pre-assigned profile!
-            const existingData = querySnapshot.docs[0].data() as UserProfile;
-            const existingId = querySnapshot.docs[0].id;
-            
-            // Update the existing document with the real UID and delete the temporary one if needed
-            // Or just create a new one with the real UID and the assigned role
-            const newProfile: UserProfile = {
-              ...existingData,
-              uid: firebaseUser.uid,
-              displayName: firebaseUser.displayName || existingData.displayName || '',
-              photoURL: firebaseUser.photoURL || existingData.photoURL || '',
-            };
-            
-            await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-            
-            // If it was a manual entry, delete the old one
-            if (existingId.startsWith('manual_')) {
-              await deleteDoc(doc(db, 'users', existingId));
+          let finalProfile = data;
+          
+          if (isAdminEmail && data.role !== 'admin') {
+            finalProfile = { ...data, role: 'admin' as UserRole };
+            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+          } else if (isSafaEmail && data.role !== 'safa') {
+            finalProfile = { ...data, role: 'safa' as UserRole };
+            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+          } else if (isStaffEmail && data.role !== 'staff') {
+            finalProfile = { ...data, role: 'staff' as UserRole };
+            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+          } else if (isSkillEduEmail && data.role !== 'student' && !isAdminEmail && !isSafaEmail && !isStaffEmail) {
+            finalProfile = { ...data, role: 'student' as UserRole };
+            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+          }
+          
+          // Auto-link student profile if email matches and admissionNumber is missing
+          if (finalProfile.role === 'student' && !finalProfile.admissionNumber && firebaseUser.email) {
+            const studentsRef = collection(db, 'students');
+            const q = query(studentsRef, where('email', '==', firebaseUser.email));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+              const studentDoc = querySnapshot.docs[0];
+              finalProfile = { ...finalProfile, admissionNumber: studentDoc.id };
+              await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile, { merge: true });
+            } else if (isSkillEduEmail) {
+              // Fallback: extract admission number from email if it's numeric
+              const prefix = firebaseUser.email.split('@')[0];
+              if (/^\d+$/.test(prefix)) {
+                finalProfile = { ...finalProfile, admissionNumber: prefix };
+                await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile, { merge: true });
+              }
             }
-            
-            setProfile(newProfile);
-          } else {
-            // Default profile for new users
+          }
+          
+          setProfile(finalProfile);
+        } else {
+          // Check if registration is enabled
+          const settingsDoc = await getDoc(doc(db, 'settings', 'system'));
+          const registrationEnabled = settingsDoc.exists() ? settingsDoc.data().registrationEnabled !== false : true;
+
+          const isAdminEmail = firebaseUser.email === 'mdthaha213@gmail.com' || firebaseUser.email === 'admin@skill.edu';
+          const isSafaEmail = firebaseUser.email === 'safa@skill.edu' || firebaseUser.email?.endsWith('@safa.edu');
+          const isStaffEmail = firebaseUser.email?.endsWith('@staff.edu') || ['sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'].includes(firebaseUser.email || '');
+          const isSkillEduEmail = firebaseUser.email?.endsWith('@skill.edu');
+          
+          let isPreRegisteredStudent = false;
+          let linkedAdmissionNumber = '';
+          if (firebaseUser.email) {
+            const studentsRef = collection(db, 'students');
+            const q = query(studentsRef, where('email', '==', firebaseUser.email));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+              isPreRegisteredStudent = true;
+              linkedAdmissionNumber = querySnapshot.docs[0].id;
+            } else if (isSkillEduEmail) {
+              const prefix = firebaseUser.email.split('@')[0];
+              if (/^\d+$/.test(prefix)) {
+                linkedAdmissionNumber = prefix;
+                isPreRegisteredStudent = true;
+              }
+            }
+          }
+
+          if (registrationEnabled || isAdminEmail || isSafaEmail || isStaffEmail || isPreRegisteredStudent || isSkillEduEmail) {
+            // Create a default profile
+            const newRole: UserRole = isAdminEmail ? 'admin' : (isSafaEmail ? 'safa' : (isStaffEmail ? 'staff' : 'student'));
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
-              role: 'student',
-              displayName: firebaseUser.displayName || '',
+              displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
+              role: newRole,
               photoURL: firebaseUser.photoURL || '',
+              admissionNumber: linkedAdmissionNumber || undefined,
+              createdAt: new Date().toISOString()
             };
+            
             await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
             setProfile(newProfile);
+          } else {
+            // No profile found and registration disabled, user is not authorized
+            setProfile(null);
+            await auth.signOut(); // Sign out unauthorized users
           }
         }
       } else {
@@ -87,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isStaff: profile?.role === 'staff' || profile?.role === 'admin',
     isSafa: profile?.role === 'safa' || profile?.role === 'admin',
     isStudent: profile?.role === 'student',
+    isAcademic: profile?.role === 'academic' || profile?.role === 'admin',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

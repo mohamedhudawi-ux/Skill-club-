@@ -1,68 +1,163 @@
 import React, { useEffect, useState } from 'react';
-import { doc, onSnapshot, collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { doc, onSnapshot, collection, query, where, orderBy, getDocs, limit, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
-import { Student, SkillClubEntry, SKILL_CLUB_CATEGORIES, Query, Notification } from '../types';
+import { useSettings } from '../SettingsContext';
+import { Student, SkillClubEntry, SKILL_CLUB_CATEGORIES, Query, Notification, BADGES } from '../types';
 import { 
   User, Mail, Phone, MapPin, Calendar, Award, TrendingUp, 
   FileText, Users, CheckCircle, MessageSquare, Bell, 
-  BarChart3, PlusCircle, Image as ImageIcon, Search
+  BarChart3, PlusCircle, Image as ImageIcon, Search,
+  Globe, Facebook, Instagram, MessageCircle, ShieldCheck, Send,
+  Trash2, Edit2, Plus, X, BookOpen
 } from 'lucide-react';
-import { WorkSubmissions } from '../components/WorkSubmissions';
 import { QueryBox } from '../components/QueryBox';
-import { AdminDashboard } from '../components/AdminDashboard';
 import { StaffDashboard } from '../components/StaffDashboard';
 import { SafaDashboard } from '../components/SafaDashboard';
+import { AdminDashboard } from '../components/AdminDashboard';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
+import { safeToDate } from '../utils/date';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { profile, isAdmin, isStaff, isSafa, isStudent } = useAuth();
+  const { settings, siteContent: content } = useSettings();
   const [student, setStudent] = useState<Student | null>(null);
   const [entries, setEntries] = useState<SkillClubEntry[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'submissions' | 'queries' | 'notifications'>('overview');
+  
+  const queryParams = new URLSearchParams(location.search);
+  const tabFromUrl = queryParams.get('tab') as any;
+  const [activeTab, setActiveTab] = useState<'overview' | 'scoreboard' | 'rules' | 'queries' | 'notifications' | 'staff-directory'>(tabFromUrl || 'overview');
+  const [topStudents, setTopStudents] = useState<Student[]>([]);
+  const [topMonthly, setTopMonthly] = useState<{name: string, points: number, admissionNumber: string, photoURL?: string}[]>([]);
+  const [classStudents, setClassStudents] = useState<Student[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  
+  const getBadge = (points: number) => {
+    return [...BADGES].reverse().find(b => points >= b.minPoints);
+  };
 
   useEffect(() => {
-    if (!profile) return;
-
-    // Notifications listener for all users
-    const qNotify = query(
-      collection(db, 'notifications'),
-      where('recipientUid', '==', profile.uid),
-      orderBy('timestamp', 'desc'),
-      limit(10)
-    );
-    const unsubNotify = onSnapshot(qNotify, (snapshot) => {
-      setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)));
-    });
-
-    if (isStudent && profile.admissionNumber) {
-      const unsubStudent = onSnapshot(doc(db, 'students', profile.admissionNumber), (doc) => {
-        if (doc.exists()) {
-          setStudent(doc.data() as Student);
-        }
-        setLoading(false);
-      });
-
-      const qEntries = query(
-        collection(db, 'skillClubEntries'),
-        where('studentAdmissionNumber', '==', profile.admissionNumber),
-        orderBy('timestamp', 'desc')
-      );
-      const unsubEntries = onSnapshot(qEntries, (snapshot) => {
-        setEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
-      });
-
-      return () => {
-        unsubNotify();
-        unsubStudent();
-        unsubEntries();
-      };
-    } else {
-      setLoading(false);
-      return () => unsubNotify();
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
     }
-  }, [profile, isStudent]);
+  }, [tabFromUrl]);
+
+  useEffect(() => {
+    if (!profile) {
+      setLoading(false);
+      return;
+    }
+
+    // If Admin/Staff/Safa, we don't need the student-specific listeners here
+    // as they are handled in their respective dashboard components.
+    if (isAdmin || isStaff || isSafa) {
+      setLoading(false);
+      return;
+    }
+
+    // --- STUDENT SPECIFIC DATA FETCHING ---
+    const fetchData = async () => {
+      if (!isStudent || !profile?.admissionNumber) return;
+
+      try {
+        // Fetch Student Profile
+        const studentDoc = await getDoc(doc(db, 'students', profile.admissionNumber));
+        if (studentDoc.exists()) {
+          setStudent(studentDoc.data() as Student);
+        }
+
+        // Fetch Notifications
+        const qNotify = query(
+          collection(db, 'notifications'),
+          where('recipientUid', '==', profile.uid),
+          orderBy('timestamp', 'desc'),
+          limit(10)
+        );
+        const notifySnap = await getDocs(qNotify);
+        setNotifications(notifySnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)));
+
+        // Scoreboard fetch
+        if (activeTab === 'overview' || activeTab === 'scoreboard') {
+          const qTop = query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(10));
+          const topSnap = await getDocs(qTop);
+          setTopStudents(topSnap.docs.map(doc => doc.data() as Student));
+        }
+
+        // Monthly Top 3
+        if (activeTab === 'scoreboard') {
+          const now = new Date();
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          const qMonthly = query(
+            collection(db, 'skillClubEntries'),
+            where('timestamp', '>=', startOfMonth),
+            orderBy('timestamp', 'desc'),
+            limit(100)
+          );
+          const monthlySnap = await getDocs(qMonthly);
+          const monthlyEntries = monthlySnap.docs.map(doc => doc.data() as SkillClubEntry);
+          const aggregation: Record<string, {name: string, points: number, photoURL?: string}> = {};
+          monthlyEntries.forEach(entry => {
+            if (!aggregation[entry.studentAdmissionNumber]) {
+              aggregation[entry.studentAdmissionNumber] = { name: 'Unknown Student', points: 0 };
+            }
+            aggregation[entry.studentAdmissionNumber].points += entry.points;
+          });
+          const sorted = Object.entries(aggregation)
+            .map(([admissionNumber, data]) => ({ admissionNumber, ...data }))
+            .sort((a, b) => b.points - a.points)
+            .slice(0, 3);
+          setTopMonthly(sorted);
+
+          // Class students
+          if (student?.class) {
+            const qClass = query(collection(db, 'students'), where('class', '==', student.class), limit(50));
+            const classSnap = await getDocs(qClass);
+            const students = classSnap.docs.map(d => d.data() as Student);
+            students.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+            setClassStudents(students);
+          }
+        }
+
+        // Entries
+        if (activeTab === 'overview') {
+          const qEntries = query(
+            collection(db, 'skillClubEntries'),
+            where('studentAdmissionNumber', '==', profile.admissionNumber),
+            orderBy('timestamp', 'desc'),
+            limit(20)
+          );
+          const entriesSnap = await getDocs(qEntries);
+          setEntries(entriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
+
+          // Programs
+          const qPrograms = query(collection(db, 'programs'), where('date', '>=', new Date().toISOString().split('T')[0]), orderBy('date', 'asc'), limit(5));
+          const programsSnap = await getDocs(qPrograms);
+          setPrograms(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }
+
+        // Staff Directory
+        if (activeTab === 'staff-directory') {
+          const qStaff = query(collection(db, 'users'), where('role', 'in', ['staff', 'academic', 'safa']));
+          const staffSnap = await getDocs(qStaff);
+          setStaffList(staffSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [profile, isStudent, isAdmin, isStaff, isSafa, activeTab]);
 
   if (loading) return (
     <div className="animate-pulse space-y-8">
@@ -82,7 +177,12 @@ export default function Dashboard() {
     return (
       <div className="bg-amber-50 border border-amber-200 p-8 rounded-3xl text-center">
         <h2 className="text-2xl font-bold text-amber-900 mb-2">Profile Not Linked</h2>
-        <p className="text-amber-700">Your account is not yet linked to a student record. Please contact the staff or admin to add your admission number.</p>
+        <p className="text-amber-700 mb-4">
+          Your account (<strong>{profile?.email}</strong>) is not yet linked to a student record.
+        </p>
+        <p className="text-amber-700">
+          Please contact the staff or admin to add your email address to your student profile in the Admin Panel. Once they add it, try logging out and logging back in.
+        </p>
       </div>
     );
   }
@@ -91,41 +191,84 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-black text-stone-900">
+            {student ? `Welcome back, ${student.name.split(' ')[0]}!` : 'Dashboard'}
+          </h2>
+          <p className="text-stone-500 font-medium">Welcome to the Skill Club & Academic Hub.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {isAdmin && (
+            <Button onClick={() => navigate('/admin')} variant="outline" className="flex items-center gap-2 bg-white">
+              <ShieldCheck size={16} className="text-stone-900" /> Admin Panel
+            </Button>
+          )}
+          {isStaff && (
+            <Button onClick={() => navigate('/staff')} variant="outline" className="flex items-center gap-2 bg-white">
+              <Users size={16} className="text-blue-600" /> Staff Panel
+            </Button>
+          )}
+          {isSafa && (
+            <Button onClick={() => navigate('/safa')} variant="outline" className="flex items-center gap-2 bg-white">
+              <Award size={16} className="text-amber-600" /> Safa Panel
+            </Button>
+          )}
+        </div>
+      </div>
+
       {/* Student Profile Header */}
       {student && (
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100 flex flex-col md:flex-row gap-8 items-center md:items-start">
-          <img 
-            src={student.photoURL || `https://ui-avatars.com/api/?name=${student.name}&background=random&size=200`} 
-            alt={student.name} 
-            className="w-40 h-40 rounded-2xl object-cover shadow-lg border-4 border-white"
-          />
-          <div className="flex-1 text-center md:text-left">
-            <h2 className="text-3xl font-black text-stone-900 mb-2">{student.name}</h2>
-            <div className="flex flex-wrap items-center gap-3 mb-6 justify-center md:justify-start">
-              <p className="text-emerald-700 font-bold">Admission No: {student.admissionNumber}</p>
-              <span className="px-3 py-1 bg-stone-100 rounded-full text-xs font-bold text-stone-600">Class: {student.class || 'N/A'}</span>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-stone-600">
-              <div className="flex items-center gap-2 justify-center md:justify-start">
-                <Calendar size={16} className="text-stone-400" /> <span>DOB: {student.dob}</span>
+        <div className="relative overflow-hidden bg-stone-900 rounded-[2rem] shadow-2xl border border-stone-800">
+          {/* Decorative Background Elements */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full -mr-24 -mt-24 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full -ml-24 -mb-24 blur-3xl" />
+          
+          <div className="relative p-6 md:p-10">
+            <div className="flex flex-col xl:flex-row gap-8 xl:gap-10 items-center xl:items-start">
+              {/* Profile Image & Main Info */}
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 shrink-0 w-full xl:w-auto">
+                <div className="relative group shrink-0">
+                  <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-600 to-emerald-400 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000" />
+                  <img 
+                    src={student.photoURL || `https://ui-avatars.com/api/?name=${student.name}&background=random&size=200`} 
+                    alt={student.name} 
+                    className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-white/20 shadow-xl"
+                  />
+                </div>
+                
+                <div className="min-w-0 text-center sm:text-left">
+                  <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-3 break-words leading-tight">{student.name}</h2>
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                    <span className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-[11px] font-black uppercase tracking-widest shrink-0">
+                      ID: {student.admissionNumber}
+                    </span>
+                    <span className="px-3 py-1 bg-white/10 text-stone-300 rounded-lg text-[11px] font-black uppercase tracking-widest shrink-0">
+                      Class: {student.class || 'N/A'}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2 justify-center md:justify-start">
-                <User size={16} className="text-stone-400" /> <span>Father: {student.fatherName}</span>
+
+              {/* Detailed Info Grid - Responsive Layout */}
+              <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { icon: Calendar, label: 'DOB', value: student.dob },
+                  { icon: User, label: 'Father', value: student.fatherName },
+                  { icon: Mail, label: 'Email', value: student.email },
+                  { icon: Phone, label: 'Contact', value: student.phone }
+                ].map((info, idx) => (
+                  <div key={idx} className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center gap-4 hover:bg-white/10 transition-colors">
+                    <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-emerald-400 shrink-0">
+                      <info.icon size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black text-stone-500 uppercase tracking-widest mb-0.5">{info.label}</p>
+                      <p className="text-sm font-bold text-stone-200 break-words leading-snug">{info.value || 'Not set'}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-2 justify-center md:justify-start">
-                <Mail size={16} className="text-stone-400" /> <span>{student.email}</span>
-              </div>
-              <div className="flex items-center gap-2 justify-center md:justify-start">
-                <Phone size={16} className="text-stone-400" /> <span>{student.phone}</span>
-              </div>
-            </div>
-          </div>
-          <div className="bg-emerald-900 text-white p-6 rounded-2xl text-center min-w-[160px] shadow-xl shadow-emerald-900/20">
-            <p className="text-xs font-bold uppercase tracking-widest mb-1 opacity-70">Total Points</p>
-            <p className="text-5xl font-black">{student.totalPoints || 0}</p>
-            <div className="mt-4 flex items-center justify-center gap-1 text-emerald-300 text-xs font-bold">
-              <TrendingUp size={14} /> <span>SkillClub Rank</span>
             </div>
           </div>
         </div>
@@ -134,86 +277,438 @@ export default function Dashboard() {
       {/* Tabs */}
       <div className="flex gap-4 border-b border-stone-200 overflow-x-auto">
         {[
-          { id: 'overview', label: 'Overview', icon: BarChart3 },
-          { id: 'submissions', label: 'Submissions', icon: FileText },
-          { id: 'queries', label: 'Queries', icon: MessageSquare },
-          { id: 'notifications', label: 'Notifications', icon: Bell }
-        ].map(tab => (
-          <button 
+          { id: 'overview', label: 'Overview', icon: BarChart3, public: false, enabled: true },
+          { id: 'scoreboard', label: 'Scoreboard', icon: Award, public: false, enabled: true },
+          { id: 'rules', label: 'Rules & Badges', icon: ShieldCheck, public: true, enabled: true },
+          { id: 'queries', label: 'Queries', icon: MessageSquare, public: false, enabled: true },
+          { id: 'notifications', label: 'Notifications', icon: Bell, public: false, enabled: true },
+          { id: 'staff-directory', label: 'Staff Directory', icon: Users, public: false, enabled: isStudent }
+        ].filter(tab => (tab.public || profile) && tab.enabled).map(tab => (
+          <Button 
             key={tab.id}
+            variant="ghost"
             onClick={() => setActiveTab(tab.id as any)}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
+            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 flex items-center gap-2 whitespace-nowrap rounded-none ${activeTab === tab.id ? 'border-emerald-600 text-emerald-900' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
           >
             <tab.icon size={16} />
             {tab.label}
-          </button>
+          </Button>
         ))}
       </div>
 
       <div className="mt-8">
-        {activeTab === 'overview' && student && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100">
-              <h3 className="text-xl font-bold text-stone-900 mb-6 flex items-center gap-2">
-                <Award className="text-emerald-600" /> Category Performance
-              </h3>
-              <div className="space-y-4">
-                {SKILL_CLUB_CATEGORIES.map((cat) => {
-                  const points = student.categoryPoints?.[cat] || 0;
-                  const max = 100;
-                  const percentage = Math.min((points / max) * 100, 100);
-                  return (
-                    <div key={cat}>
-                      <div className="flex justify-between text-sm font-bold mb-1">
-                        <span className="text-stone-600">{cat}</span>
-                        <span className="text-emerald-700">{points} pts</span>
-                      </div>
-                      <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-emerald-600 rounded-full transition-all duration-1000" 
-                          style={{ width: `${percentage}%` }}
-                        />
+        {activeTab === 'overview' && (
+          <div className="space-y-8">
+            {student && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Badge Progress Card */}
+                <Card className="p-6">
+                  <h3 className="text-xl font-bold text-stone-900 mb-6 flex items-center gap-2">
+                    <ShieldCheck className="text-emerald-600" /> Badge Progress
+                  </h3>
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-600 text-white rounded-xl">
+                          <TrendingUp size={20} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Total Reward Points</p>
+                          <p className="text-2xl font-black text-emerald-950">{student.totalPoints || 0}</p>
+                        </div>
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      {BADGES.map((badge, index) => {
+                        const earned = (student.badges || []).includes(badge.id);
+                        const prevBadgePoints = index === 0 ? 0 : BADGES[index - 1].minPoints;
+                        const pointsNeeded = badge.minPoints - prevBadgePoints;
+                        const currentPointsInTier = Math.max(0, (student.totalPoints || 0) - prevBadgePoints);
+                        const progress = Math.min(100, (currentPointsInTier / pointsNeeded) * 100);
+                        
+                        return (
+                          <div 
+                            key={badge.id}
+                            className={`p-4 rounded-2xl border transition-all ${
+                              earned 
+                                ? 'bg-emerald-600 border-emerald-600 text-white shadow-md' 
+                                : 'bg-stone-50 border-stone-100'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-3">
+                                <ShieldCheck size={20} className={earned ? 'text-emerald-100' : 'text-stone-300'} />
+                                <span className={`text-sm font-bold uppercase tracking-widest ${earned ? 'text-white' : 'text-stone-600'}`}>
+                                  {badge.name}
+                                </span>
+                              </div>
+                              {earned && <CheckCircle size={16} className="text-emerald-200" />}
+                            </div>
+                            {!earned && (
+                              <div className="space-y-1.5">
+                                <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                                  <div className="h-full bg-emerald-500" style={{ width: `${progress}%` }} />
+                                </div>
+                                <p className="text-[9px] text-stone-400 font-bold uppercase tracking-widest">
+                                  {badge.minPoints - (student.totalPoints || 0)} pts to go
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="lg:col-span-2 p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-bold text-stone-900 flex items-center gap-2">
+                      <Calendar className="text-emerald-600" /> Upcoming Programs
+                    </h3>
+                  </div>
+                  <div className="space-y-4">
+                    {programs.length > 0 ? programs.map((program) => (
+                      <div key={program.id} className="flex items-start gap-4 p-4 rounded-2xl hover:bg-stone-50 transition-colors border border-transparent hover:border-stone-100">
+                        <div className="bg-emerald-100 text-emerald-700 p-2 rounded-lg">
+                          <Calendar size={20} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-bold text-stone-900">{program.title}</h4>
+                            <span className="text-emerald-700 font-black text-xs">{program.date}</span>
+                          </div>
+                          <p className="text-sm text-stone-500 mt-1">{program.description}</p>
+                          <p className="text-[10px] text-stone-400 mt-2 font-medium uppercase tracking-wider">
+                            Category: {program.category}
+                          </p>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="text-center py-12 text-stone-400 italic">
+                        No upcoming programs scheduled.
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* About Sections */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <Card className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  {content.find(c => c.key === 'college_logo')?.value && (
+                    <img src={content.find(c => c.key === 'college_logo')?.value} alt="Darul Huda Punganur Logo" className="w-16 h-16 object-contain" />
+                  )}
+                  <h3 className="text-xl font-bold text-stone-900">Darul Huda Punganur</h3>
+                </div>
+                <p className="text-stone-600 whitespace-pre-wrap leading-relaxed">
+                  {content.find(c => c.key === 'about_college')?.value || 'Information about Darul Huda Punganur will appear here.'}
+                </p>
+              </Card>
+              <Card className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  {content.find(c => c.key === 'safa_logo')?.value && (
+                    <img src={content.find(c => c.key === 'safa_logo')?.value} alt="Safa Union Logo" className="w-16 h-16 object-contain" />
+                  )}
+                  <h3 className="text-xl font-black text-emerald-700">Safa Union</h3>
+                </div>
+                <p className="text-stone-600 whitespace-pre-wrap leading-relaxed">
+                  {content.find(c => c.key === 'about_safa')?.value || 'Information about Safa Union will appear here.'}
+                </p>
+              </Card>
+              <Card className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  {content.find(c => c.key === 'skillclub_logo')?.value && (
+                    <img src={content.find(c => c.key === 'skillclub_logo')?.value} alt="Skill Club Logo" className="w-16 h-16 object-contain" />
+                  )}
+                  <h3 className="text-xl font-bold text-stone-900">Skill Club</h3>
+                </div>
+                <p className="text-stone-600 whitespace-pre-wrap leading-relaxed">
+                  {content.find(c => c.key === 'about_skillclub')?.value || 'Information about Skill Club will appear here.'}
+                </p>
+              </Card>
+            </div>
+
+            {/* Social Media Links */}
+            <Card className="p-8 bg-white shadow-xl rounded-[2rem] border-none">
+              <h3 className="text-2xl font-black text-stone-900 mb-8 flex items-center gap-3">
+                <Globe className="text-emerald-600" /> Contact Us
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
+                {[
+                  { key: 'social_facebook', label: 'Facebook', icon: Facebook, color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+                  { key: 'social_instagram', label: 'Instagram', icon: Instagram, color: 'bg-pink-50 text-pink-700 hover:bg-pink-100' },
+                  { key: 'social_telegram', label: 'Telegram', icon: Send, color: 'bg-sky-50 text-sky-700 hover:bg-sky-100' },
+                  { key: 'social_whatsapp', label: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                  { key: 'social_phone', label: 'Call', icon: Phone, color: 'bg-stone-100 text-stone-700 hover:bg-stone-200', prefix: 'tel:' },
+                  { key: 'social_gmail', label: 'Gmail', icon: Mail, color: 'bg-red-50 text-red-700 hover:bg-red-100', prefix: 'mailto:' },
+                ].map((social) => {
+                  const link = content.find(c => c.key === social.key)?.value;
+                  
+                  const formatLink = (link: string) => {
+                    if (!link) return '#';
+                    if (link.startsWith('http://') || link.startsWith('https://') || link.startsWith('mailto:') || link.startsWith('tel:')) {
+                      return link;
+                    }
+                    return `https://${link}`;
+                  };
+
+                  const href = link ? (social.prefix ? `${social.prefix}${link}` : formatLink(link)) : '#';
+                  
+                  return (
+                    <a 
+                      key={social.key}
+                      href={href}
+                      target={link && !social.prefix ? "_blank" : undefined} 
+                      rel="noopener noreferrer" 
+                      className={`flex flex-col items-center gap-3 p-6 rounded-[2rem] font-black transition-all duration-300 group ${social.color} ${!link ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      onClick={(e) => !link && e.preventDefault()}
+                    >
+                      <div className="p-4 bg-white rounded-2xl shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
+                        <social.icon size={28} className="text-inherit" />
+                      </div>
+                      <span className="text-[10px] uppercase tracking-[0.2em]">{social.label}</span>
+                    </a>
                   );
                 })}
               </div>
-            </div>
+            </Card>
+          </div>
+        )}
 
-            <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-stone-100">
-              <h3 className="text-xl font-bold text-stone-900 mb-6 flex items-center gap-2">
-                <TrendingUp className="text-emerald-600" /> Recent Activities
-              </h3>
-              <div className="space-y-4">
-                {entries.length > 0 ? entries.map((entry) => (
-                  <div key={entry.id} className="flex items-start gap-4 p-4 rounded-2xl hover:bg-stone-50 transition-colors border border-transparent hover:border-stone-100">
-                    <div className="bg-emerald-100 text-emerald-700 p-2 rounded-lg">
-                      <Award size={20} />
+      {activeTab === 'scoreboard' && (
+          <div className="max-w-4xl mx-auto space-y-12">
+            {/* Monthly Top 3 */}
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-2xl font-black text-stone-900 flex items-center justify-center gap-2">
+                  <Award className="text-amber-500" /> Top 3 Students of the Month
+                </h3>
+                <p className="text-stone-500 text-sm mt-1">Performance for {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {topMonthly.length > 0 ? topMonthly.map((s, idx) => (
+                  <Card key={s.admissionNumber} className={`p-6 text-center relative overflow-hidden ${
+                    idx === 0 ? 'border-amber-200 bg-amber-50/30' : 
+                    idx === 1 ? 'border-stone-200 bg-stone-50/30' : 
+                    'border-orange-200 bg-orange-50/30'
+                  }`}>
+                    <div className={`absolute top-0 right-0 px-4 py-1 font-black text-xs uppercase tracking-widest ${
+                      idx === 0 ? 'bg-amber-500 text-white' : 
+                      idx === 1 ? 'bg-stone-400 text-white' : 
+                      'bg-orange-500 text-white'
+                    }`}>
+                      #{idx + 1}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-bold text-stone-900">{entry.category}</h4>
-                        <span className="text-emerald-700 font-black">+{entry.points}</span>
-                      </div>
-                      <p className="text-sm text-stone-500 mt-1">{entry.description}</p>
-                      <p className="text-[10px] text-stone-400 mt-2 font-medium uppercase tracking-wider">
-                        {entry.timestamp?.toDate().toLocaleDateString()}
-                      </p>
+                    <img 
+                      src={s.photoURL || `https://ui-avatars.com/api/?name=${s.name}&background=random`} 
+                      className="w-20 h-20 rounded-2xl mx-auto mb-4 object-cover border-4 border-white shadow-md"
+                      alt={s.name}
+                    />
+                    <h4 className="font-bold text-stone-900 truncate">{s.name}</h4>
+                    <p className="text-[10px] text-stone-400 uppercase font-black tracking-widest mb-3">{s.admissionNumber}</p>
+                    <div className="inline-block px-4 py-1 bg-white rounded-full border border-stone-100 shadow-sm">
+                      <span className="text-xl font-black text-emerald-600">{s.points}</span>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase ml-1">pts</span>
                     </div>
-                  </div>
+                  </Card>
                 )) : (
-                  <div className="text-center py-12 text-stone-400 italic">
-                    No activities recorded yet.
+                  <div className="col-span-3 text-center py-12 text-stone-400 italic bg-stone-50 rounded-3xl border border-dashed border-stone-200">
+                    No entries recorded for this month yet.
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Class Leaderboard (Students Only) */}
+            {isStudent && student?.class && classStudents.length > 0 && (
+              <Card className="p-8">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
+                  <h3 className="text-2xl font-black text-stone-900 flex items-center gap-2">
+                    <Users className="text-emerald-600" /> Class {student.class} Scoreboard
+                  </h3>
+                </div>
+                <div className="space-y-4">
+                  {classStudents.map((s, idx) => (
+                    <div 
+                      key={s.admissionNumber} 
+                      className={`flex items-center justify-between p-5 rounded-3xl border transition-all ${
+                        s.admissionNumber === student?.admissionNumber 
+                          ? 'bg-emerald-50 border-emerald-200 shadow-sm scale-[1.02]' 
+                          : 'bg-white border-stone-100 hover:border-stone-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-lg ${
+                          idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                          idx === 1 ? 'bg-stone-100 text-stone-600' :
+                          idx === 2 ? 'bg-orange-100 text-orange-700' :
+                          'bg-stone-50 text-stone-400'
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <img 
+                          src={s.photoURL || `https://ui-avatars.com/api/?name=${s.name}&background=random`} 
+                          alt={s.name} 
+                          className="w-12 h-12 rounded-xl object-cover border-2 border-white shadow-sm"
+                        />
+                        <div>
+                          <p className="font-bold text-stone-900 flex items-center gap-2">
+                            {s.name}
+                            {s.admissionNumber === student?.admissionNumber && (
+                              <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full uppercase tracking-widest">You</span>
+                            )}
+                            {getBadge(s.totalPoints || 0) && (
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter flex items-center gap-1 ${
+                                getBadge(s.totalPoints || 0)?.club === 'Silver' ? 'bg-stone-100 text-stone-600' :
+                                getBadge(s.totalPoints || 0)?.club === 'Gold' ? 'bg-amber-100 text-amber-600' :
+                                getBadge(s.totalPoints || 0)?.club === 'Emerald' ? 'bg-emerald-100 text-emerald-600' :
+                                'bg-blue-100 text-blue-600'
+                              }`}>
+                                <Award size={10} />
+                                {getBadge(s.totalPoints || 0)?.name}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-stone-500">{s.admissionNumber}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-emerald-600">{s.totalPoints || 0}</p>
+                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Points</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Overall Leaderboard */}
+            <Card className="p-8">
+              <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
+                <h3 className="text-2xl font-black text-stone-900 flex items-center gap-2">
+                  <TrendingUp className="text-emerald-600" /> Overall Skill Club Toppers
+                </h3>
+                {topStudents.length > 0 && (
+                  <div className="bg-emerald-900 text-white px-6 py-2 rounded-2xl flex items-center gap-3 shadow-lg shadow-emerald-900/20">
+                    <Award className="text-amber-400" size={20} />
+                    <div>
+                      <p className="text-[8px] font-black uppercase tracking-widest opacity-70">Overall Topper</p>
+                      <p className="text-sm font-bold">{topStudents[0].name}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-4">
+                {topStudents.map((s, idx) => (
+                  <div 
+                    key={s.admissionNumber} 
+                    className={`flex items-center justify-between p-5 rounded-3xl border transition-all ${
+                      s.admissionNumber === student?.admissionNumber 
+                        ? 'bg-emerald-50 border-emerald-200 shadow-sm scale-[1.02]' 
+                        : 'bg-white border-stone-100 hover:border-stone-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-lg ${
+                        idx === 0 ? 'bg-yellow-100 text-yellow-700' :
+                        idx === 1 ? 'bg-stone-100 text-stone-600' :
+                        idx === 2 ? 'bg-orange-100 text-orange-700' :
+                        'bg-stone-50 text-stone-400'
+                      }`}>
+                        {idx + 1}
+                      </div>
+                      <img 
+                        src={s.photoURL || `https://ui-avatars.com/api/?name=${s.name}&background=random`} 
+                        alt={s.name} 
+                        className="w-12 h-12 rounded-xl object-cover border-2 border-white shadow-sm"
+                      />
+                      <div>
+                        <p className="font-bold text-stone-900 flex items-center gap-2">
+                          {s.name}
+                          {s.admissionNumber === student?.admissionNumber && (
+                            <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full uppercase tracking-widest">You</span>
+                          )}
+                          {getBadge(s.totalPoints || 0) && (
+                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter flex items-center gap-1 ${
+                              getBadge(s.totalPoints || 0)?.club === 'Silver' ? 'bg-stone-100 text-stone-600' :
+                              getBadge(s.totalPoints || 0)?.club === 'Gold' ? 'bg-amber-100 text-amber-600' :
+                              getBadge(s.totalPoints || 0)?.club === 'Emerald' ? 'bg-emerald-100 text-emerald-600' :
+                              'bg-blue-100 text-blue-600'
+                            }`}>
+                              <Award size={10} />
+                              {getBadge(s.totalPoints || 0)?.name}
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-stone-500">Class: {s.class} | {s.admissionNumber}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-black text-emerald-600">{s.totalPoints || 0}</p>
+                      <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Points</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
           </div>
         )}
 
-        {activeTab === 'submissions' && profile && (
-          <div className="max-w-4xl mx-auto">
-            <WorkSubmissions userProfile={profile} />
+        {activeTab === 'rules' && (
+          <div className="space-y-8">
+            <Card className="p-8">
+              <h3 className="text-2xl font-black text-stone-900 mb-6 flex items-center gap-2">
+                <ShieldCheck className="text-emerald-600" /> Skill Club Rules & Badges
+              </h3>
+              
+              <div className="space-y-8">
+                <div className="bg-stone-50 p-6 rounded-3xl border border-stone-100">
+                  <h4 className="text-lg font-bold text-stone-900 mb-4 uppercase tracking-wider text-xs">Badge Progression</h4>
+                  <ul className="space-y-4">
+                    <li className="flex items-start gap-3">
+                      <div className="bg-stone-200 text-stone-600 p-2 rounded-xl mt-1"><Award size={16} /></div>
+                      <div>
+                        <p className="font-bold text-stone-900">Champion Badge (Silver Club)</p>
+                        <p className="text-sm text-stone-600">Achieve 300 reward points. Upon acquiring, your name will be displayed on the Campus Leader Board.</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="bg-amber-100 text-amber-600 p-2 rounded-xl mt-1"><Award size={16} /></div>
+                      <div>
+                        <p className="font-bold text-stone-900">Star Badge (Gold Club)</p>
+                        <p className="text-sm text-stone-600">Achieve 500 reward points.</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="bg-emerald-100 text-emerald-600 p-2 rounded-xl mt-1"><Award size={16} /></div>
+                      <div>
+                        <p className="font-bold text-stone-900">Master Badge (Emerald Club)</p>
+                        <p className="text-sm text-stone-600">Achieve 700 reward points. Eligible for welfare cell's scholarship scheme and Dinner with Mentor scheme. If there are more than 6 badge earners, a one-day outing will be given.</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="bg-blue-100 text-blue-600 p-2 rounded-xl mt-1"><Award size={16} /></div>
+                      <div>
+                        <p className="font-bold text-stone-900">Legendary Badge (Diamond Club)</p>
+                        <p className="text-sm text-stone-600">Achieve 1000 reward points. Eligible for special awards and cash awards given by the Institution.</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="bg-purple-100 text-purple-600 p-2 rounded-xl mt-1"><Award size={16} /></div>
+                      <div>
+                        <p className="font-bold text-stone-900">Topper Badge (Student of The Year)</p>
+                        <p className="text-sm text-stone-600">Awarded to the student who collects the most reward points. Eligible for a special award and cash award given by the institution.</p>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </Card>
           </div>
         )}
 
@@ -230,7 +725,7 @@ export default function Dashboard() {
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="font-bold text-stone-900">{n.title}</h4>
                   <span className="text-[10px] text-stone-400 font-bold uppercase">
-                    {n.timestamp?.toDate().toLocaleDateString()}
+                    {safeToDate(n.timestamp)?.toLocaleDateString()}
                   </span>
                 </div>
                 <p className="text-sm text-stone-600">{n.message}</p>
@@ -240,6 +735,56 @@ export default function Dashboard() {
                 No notifications yet.
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'staff-directory' && (
+          <div className="space-y-8">
+            <h3 className="text-2xl font-black text-stone-900 flex items-center gap-2">
+              <Users className="text-emerald-600" /> Staff Directory
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {staffList.map((staff) => (
+                <Card key={staff.id} className="p-6 flex flex-col items-center text-center hover:shadow-xl transition-all duration-300">
+                  <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border-4 border-stone-50 shadow-inner bg-stone-100 flex items-center justify-center">
+                    {staff.photoURL ? (
+                      <img src={staff.photoURL} alt={staff.displayName || 'Staff'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <User size={32} className="text-stone-300" />
+                    )}
+                  </div>
+                  <h4 className="text-lg font-black text-stone-900 mb-1">{staff.displayName || 'Unnamed Staff'}</h4>
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-black uppercase tracking-widest mb-4">
+                    {staff.role}
+                  </span>
+                  
+                  <div className="w-full space-y-3 text-left bg-stone-50 p-4 rounded-2xl">
+                    {staff.email && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <Mail size={16} className="text-stone-400 shrink-0" />
+                        <span className="text-stone-600 truncate font-medium">{staff.email}</span>
+                      </div>
+                    )}
+                    {staff.phone && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <Phone size={16} className="text-stone-400 shrink-0" />
+                        <span className="text-stone-600 font-medium">{staff.phone}</span>
+                      </div>
+                    )}
+                    {!staff.email && !staff.phone && (
+                      <div className="text-center text-stone-400 text-xs italic py-2">
+                        No contact info available
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))}
+              {staffList.length === 0 && (
+                <div className="col-span-full text-center py-20 text-stone-400 italic">
+                  No staff members found.
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

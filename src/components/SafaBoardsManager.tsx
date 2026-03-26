@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, query, where } from 'firebase/firestore';
 import { Board, BoardMember } from '../types';
 import { Plus, Trash2, UserPlus, Users, ChevronRight, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,16 +17,19 @@ export const SafaBoardsManager: React.FC = () => {
   const [newMemberPhoto, setNewMemberPhoto] = useState('');
 
   useEffect(() => {
-    const unsubBoards = onSnapshot(collection(db, 'boards'), (snapshot) => {
-      setBoards(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Board)));
-    });
-    const unsubMembers = onSnapshot(collection(db, 'boardMembers'), (snapshot) => {
-      setMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BoardMember)));
-    });
-    return () => {
-      unsubBoards();
-      unsubMembers();
+    const fetchData = async () => {
+      try {
+        const [boardsSnap, membersSnap] = await Promise.all([
+          getDocs(collection(db, 'boards')),
+          getDocs(collection(db, 'boardMembers'))
+        ]);
+        setBoards(boardsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Board)));
+        setMembers(membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BoardMember)));
+      } catch (error) {
+        console.error('Error fetching boards/members:', error);
+      }
     };
+    fetchData();
   }, []);
 
   const handleCreateBoard = async (e: React.FormEvent) => {
@@ -41,13 +44,11 @@ export const SafaBoardsManager: React.FC = () => {
   };
 
   const handleDeleteBoard = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this board?')) {
-      await deleteDoc(doc(db, 'boards', id));
-      // Also delete members of this board
-      const boardMembers = members.filter(m => m.boardId === id);
-      for (const m of boardMembers) {
-        await deleteDoc(doc(db, 'boardMembers', m.id));
-      }
+    await deleteDoc(doc(db, 'boards', id));
+    // Also delete members of this board
+    const boardMembers = members.filter(m => m.boardId === id);
+    for (const m of boardMembers) {
+      await deleteDoc(doc(db, 'boardMembers', m.id));
     }
   };
 

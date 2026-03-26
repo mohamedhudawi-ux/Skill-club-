@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile, Query as QueryType } from '../types';
-import { Send, Mic, Square, MessageSquare, Clock, CheckCircle } from 'lucide-react';
+import { Send, Mic, Square, MessageSquare, Clock, CheckCircle, Trash2 } from 'lucide-react';
 
 export function QueryBox({ userProfile }: { userProfile: UserProfile }) {
   const [message, setMessage] = useState('');
@@ -13,17 +13,27 @@ export function QueryBox({ userProfile }: { userProfile: UserProfile }) {
   const timerRef = useRef<any>(null);
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'queries'),
-      where('studentUid', '==', userProfile.uid),
-      orderBy('timestamp', 'desc')
-    );
+    const fetchQueries = async () => {
+      const q = query(
+        collection(db, 'queries'),
+        where('studentUid', '==', userProfile.uid)
+      );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setQueries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QueryType)));
-    });
+      try {
+        const snapshot = await getDocs(q);
+        const queryList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QueryType));
+        queryList.sort((a, b) => {
+          const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+          const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+          return timeB - timeA;
+        });
+        setQueries(queryList);
+      } catch (error) {
+        console.error('Error fetching queries:', error);
+      }
+    };
 
-    return () => unsubscribe();
+    fetchQueries();
   }, [userProfile.uid]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,6 +77,20 @@ export function QueryBox({ userProfile }: { userProfile: UserProfile }) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this query?')) {
+      try {
+        await deleteDoc(doc(db, 'queries', id));
+        setStatus({ type: 'success', msg: 'Query deleted successfully!' });
+        setTimeout(() => setStatus(null), 3000);
+      } catch (error) {
+        console.error('Error deleting query:', error);
+        setStatus({ type: 'error', msg: 'Failed to delete query.' });
+        setTimeout(() => setStatus(null), 3000);
+      }
+    }
   };
 
   return (
@@ -138,9 +162,18 @@ export function QueryBox({ userProfile }: { userProfile: UserProfile }) {
                 <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${q.status === 'replied' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                   {q.status}
                 </span>
-                <span className="text-[10px] text-stone-400 font-bold">
-                  {q.timestamp?.toDate().toLocaleDateString()}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-stone-400 font-bold">
+                    {q.timestamp?.toDate().toLocaleDateString()}
+                  </span>
+                  <button
+                    onClick={() => handleDelete(q.id!)}
+                    className="text-stone-400 hover:text-red-600 transition-colors"
+                    title="Delete Query"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
               <p className="text-stone-800 mb-4">{q.message}</p>
               {q.reply && (

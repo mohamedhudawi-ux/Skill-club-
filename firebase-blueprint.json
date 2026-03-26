@@ -10,7 +10,9 @@
         "role": { "type": "string", "enum": ["student", "staff", "safa", "admin"] },
         "displayName": { "type": "string" },
         "photoURL": { "type": "string" },
-        "admissionNumber": { "type": "string", "description": "Only for students" }
+        "admissionNumber": { "type": "string", "description": "Only for students" },
+        "totalPoints": { "type": "number" },
+        "badges": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["uid", "email", "role"]
     },
@@ -43,9 +45,49 @@
       "properties": {
         "name": { "type": "string" },
         "description": { "type": "string" },
-        "logoUrl": { "type": "string" }
+        "logoUrl": { "type": "string" },
+        "totalPoints": { "type": "number" }
       },
       "required": ["name"]
+    },
+    "ClubPointEntry": {
+      "title": "Club Point Entry",
+      "description": "Points awarded to a club.",
+      "type": "object",
+      "properties": {
+        "clubId": { "type": "string" },
+        "points": { "type": "number" },
+        "description": { "type": "string" },
+        "addedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clubId", "points", "description", "addedBy", "timestamp"]
+    },
+    "MonthlyReport": {
+      "title": "Monthly Report",
+      "description": "Monthly activity report for Safa Union.",
+      "type": "object",
+      "properties": {
+        "month": { "type": "string", "description": "YYYY-MM format" },
+        "reportText": { "type": "string" },
+        "submittedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["month", "reportText", "submittedBy", "timestamp"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial transaction for Safa Union.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "addedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "amount", "description", "date", "addedBy", "timestamp"]
     },
     "ClubMember": {
       "title": "Club Member",
@@ -86,20 +128,26 @@
       "description": "Student work submitted for points.",
       "type": "object",
       "properties": {
-        "studentAdmissionNumber": { "type": "string" },
+        "studentUid": { "type": "string" },
+        "studentName": { "type": "string" },
+        "admissionNumber": { "type": "string" },
+        "category": { "type": "string" },
+        "subCategory": { "type": "string" },
         "title": { "type": "string" },
         "description": { "type": "string" },
         "fileUrl": { "type": "string" },
+        "link": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
         "pointsAwarded": { "type": "number" },
         "reviewedBy": { "type": "string" },
+        "reviewComment": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" }
       },
-      "required": ["studentAdmissionNumber", "title", "fileUrl", "status"]
+      "required": ["studentUid", "admissionNumber", "category", "title", "status"]
     },
     "OfficeBearer": {
       "title": "Office Bearer",
-      "description": "A union office bearer.",
+      "description": "A Skill Club office bearer.",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
@@ -229,7 +277,7 @@
     },
     "/officeBearers/{bearerId}": {
       "schema": "OfficeBearer",
-      "description": "Union office bearers"
+      "description": "Skill Club office bearers"
     },
     "/siteContent/{contentId}": {
       "schema": "SiteContent",
@@ -242,6 +290,18 @@
     "/notifications/{notificationId}": {
       "schema": "Notification",
       "description": "User notifications"
+    },
+    "/clubPointEntries/{entryId}": {
+      "schema": "ClubPointEntry",
+      "description": "Club point records"
+    },
+    "/monthlyReports/{reportId}": {
+      "schema": "MonthlyReport",
+      "description": "Monthly activity reports"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Financial transactions"
     }
   }
 }

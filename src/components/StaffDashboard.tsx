@@ -1,214 +1,356 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { Card } from './Card';
+import { Users, Calendar, FileText, Award, TrendingUp, ChevronRight, CheckCircle, XCircle, Clock, Search, AlertCircle } from 'lucide-react';
 import { useAuth } from '../AuthContext';
-import { SkillClubEntry, GalleryItem, Student } from '../types';
-import { 
-  CheckCircle, XCircle, ImageIcon, PlusCircle, 
-  Search, Award, Users, Camera, Filter, TrendingUp
-} from 'lucide-react';
+import { useSettings } from '../SettingsContext';
+import { collection, getDocs, query, orderBy, limit, where, getCountFromServer } from 'firebase/firestore';
+import { db } from '../firebase';
+import { Student, WorkSubmission } from '../types';
+import { Button } from './Button';
+import { CLASS_LIST } from '../constants';
 
 export function StaffDashboard() {
   const { profile } = useAuth();
-  const [pendingEntries, setPendingEntries] = useState<SkillClubEntry[]>([]);
+  const { siteContent: content } = useSettings();
+  const [topStudents, setTopStudents] = useState<Student[]>([]);
+  const [classCounts, setClassCounts] = useState<Record<string, number>>({});
+  const [recentSubmissions, setRecentSubmissions] = useState<WorkSubmission[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [classStudents, setClassStudents] = useState<Student[]>([]);
+  const [filteredClassStudents, setFilteredClassStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showUpload, setShowUpload] = useState(false);
-  const [uploadData, setUploadData] = useState({ url: '', caption: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'skillClubEntries'),
-      where('status', '==', 'pending'),
-      orderBy('timestamp', 'desc')
-    );
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPendingEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
-      setLoading(false);
-    });
+        // Fetch Top Students
+        const qTop = query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(3));
+        const topSnap = await getDocs(qTop);
+        setTopStudents(topSnap.docs.map(doc => doc.data() as Student));
 
-    return () => unsubscribe();
+        // Fetch Class Counts using getCountFromServer for efficiency
+        const counts: Record<string, number> = {};
+        await Promise.all(CLASS_LIST.map(async (className) => {
+          const q = query(collection(db, 'students'), where('class', '==', className));
+          const snap = await getCountFromServer(q);
+          counts[className] = snap.data().count;
+        }));
+        setClassCounts(counts);
+
+        // Fetch Recent Pending Submissions
+        const qSubmissions = query(
+          collection(db, 'workSubmissions'),
+          where('status', '==', 'pending'),
+          orderBy('timestamp', 'desc'),
+          limit(5)
+        );
+        const submissionsSnap = await getDocs(qSubmissions);
+        setRecentSubmissions(submissionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
+
+      } catch (err: any) {
+        console.error('Staff Dashboard Fetch Error:', err);
+        if (err?.message?.includes('Quota exceeded')) {
+          setError('Firestore daily free quota exceeded. Some data may not load.');
+        } else {
+          setError('Failed to load dashboard data.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  const handleVerify = async (entryId: string, status: 'verified' | 'rejected', points?: number) => {
+  const handleClassClick = async (className: string) => {
+    setSelectedClass(className);
+    setSearchTerm('');
     try {
-      const entryRef = doc(db, 'skillClubEntries', entryId);
-      await updateDoc(entryRef, {
-        status,
-        verifiedBy: profile?.uid,
-        points: points || 0,
-        remarks: status === 'verified' ? 'Verified by staff' : 'Rejected by staff'
-      });
-
-      // If verified, update student's total points
-      if (status === 'verified' && points) {
-        // This would ideally be a cloud function or a batch update
-        // For now, we'll assume the student document needs to be updated manually or via another listener
-      }
+      const q = query(collection(db, 'students'), where('class', '==', className), orderBy('name', 'asc'));
+      const snap = await getDocs(q);
+      const students = snap.docs.map(doc => doc.data() as Student);
+      setClassStudents(students);
+      setFilteredClassStudents(students);
     } catch (error) {
-      console.error('Error verifying entry:', error);
+      console.error('Error fetching class students:', error);
     }
   };
 
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!uploadData.url) return;
-
-    try {
-      await addDoc(collection(db, 'gallery'), {
-        ...uploadData,
-        uploadedBy: profile?.uid,
-        timestamp: serverTimestamp()
-      });
-      setUploadData({ url: '', caption: '' });
-      setShowUpload(false);
-    } catch (error) {
-      console.error('Error uploading to gallery:', error);
-    }
+  const handleSearch = (term: string) => {
+    setSearchTerm(term);
+    const filtered = classStudents.filter(s => 
+      s.name.toLowerCase().includes(term.toLowerCase()) || 
+      s.admissionNumber.toLowerCase().includes(term.toLowerCase())
+    );
+    setFilteredClassStudents(filtered);
   };
 
-  if (loading) return <div className="p-8 text-center">Loading Staff Dashboard...</div>;
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 space-y-4">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-stone-500 font-bold animate-pulse">Loading Staff Dashboard...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-black text-stone-900">Staff Verification Portal</h2>
-        <button 
-          onClick={() => setShowUpload(true)}
-          className="bg-emerald-900 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-emerald-800 transition-all shadow-lg shadow-emerald-900/20"
-        >
-          <Camera size={20} /> Upload to Gallery
-        </button>
+    <div className="space-y-10">
+      {error && (
+        <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3 text-rose-700 animate-in fade-in slide-in-from-top-4 duration-300">
+          <AlertCircle size={20} />
+          <p className="text-sm font-bold">{error}</p>
+        </div>
+      )}
+      {/* Welcome Header */}
+      <div className="relative overflow-hidden bg-stone-900 rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl flex flex-col md:flex-row items-center gap-8">
+        <img 
+          src={profile?.photoURL || `https://ui-avatars.com/api/?name=${profile?.displayName || 'Staff'}&background=random&size=200`} 
+          alt="Profile" 
+          className="w-24 h-24 md:w-32 md:h-32 rounded-3xl object-cover border-4 border-white/10 shadow-xl"
+        />
+        <div className="text-center md:text-left">
+          <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-2">
+            Welcome, <span className="text-blue-400">{profile?.displayName || 'Staff Member'}</span>!
+          </h2>
+          <p className="text-stone-400 font-medium">Here's what's happening in your classes today.</p>
+        </div>
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="p-8 bg-blue-50 border-blue-100 relative overflow-hidden group">
+          <div className="relative z-10">
+            <p className="text-blue-800 text-xs font-black uppercase tracking-widest mb-1">Total Students</p>
+            <h4 className="text-4xl font-black text-blue-950 mb-2">
+              {Object.values(classCounts).reduce((a: number, b: number) => a + b, 0)}
+            </h4>
+            <div className="flex items-center text-blue-600 text-xs font-bold">
+              <Users size={14} className="mr-1" />
+              Across {Object.keys(classCounts).length} classes
+            </div>
+          </div>
+          <Users className="absolute -right-4 -bottom-4 w-24 h-24 text-blue-500/10 group-hover:scale-110 transition-transform" />
+        </Card>
+
+        <Card className="p-8 bg-emerald-50 border-emerald-100 relative overflow-hidden group">
+          <div className="relative z-10">
+            <p className="text-emerald-800 text-xs font-black uppercase tracking-widest mb-1">Pending Reviews</p>
+            <h4 className="text-4xl font-black text-emerald-950 mb-2">{recentSubmissions.length}</h4>
+            <div className="flex items-center text-emerald-600 text-xs font-bold">
+              <Clock size={14} className="mr-1" />
+              Recent work submissions
+            </div>
+          </div>
+          <FileText className="absolute -right-4 -bottom-4 w-24 h-24 text-emerald-500/10 group-hover:scale-110 transition-transform" />
+        </Card>
+
+        <Card className="p-8 bg-amber-50 border-amber-100 relative overflow-hidden group">
+          <div className="relative z-10">
+            <p className="text-amber-800 text-xs font-black uppercase tracking-widest mb-1">Top Class</p>
+            <h4 className="text-4xl font-black text-amber-950 mb-2">
+              {Object.entries(classCounts).sort((a: [string, number], b: [string, number]) => b[1] - a[1])[0]?.[0] || 'N/A'}
+            </h4>
+            <div className="flex items-center text-amber-600 text-xs font-bold">
+              <TrendingUp size={14} className="mr-1" />
+              Most active class
+            </div>
+          </div>
+          <Award className="absolute -right-4 -bottom-4 w-24 h-24 text-amber-500/10 group-hover:scale-110 transition-transform" />
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Pending Verifications */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-stone-900 flex items-center gap-2">
-              <CheckCircle className="text-emerald-600" /> Pending Verifications
-              <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs">{pendingEntries.length}</span>
-            </h3>
-            <div className="flex gap-2">
-              <button className="p-2 bg-stone-100 text-stone-600 rounded-lg hover:bg-stone-200 transition-colors">
-                <Filter size={16} />
-              </button>
+        {/* Class Counts & Selection */}
+        <div className="lg:col-span-2 space-y-8">
+          <Card className="p-8 border-stone-100 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-2xl font-black text-stone-900">Students by Class</h3>
+              <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">Click to view students</p>
             </div>
-          </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {Object.entries(classCounts).map(([className, count]) => (
+                <button 
+                  key={className} 
+                  onClick={() => handleClassClick(className)}
+                  className={`p-6 rounded-3xl border transition-all text-center group ${
+                    selectedClass === className 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-[1.02]' 
+                      : 'bg-stone-50 border-stone-100 hover:border-blue-200 hover:bg-white'
+                  }`}
+                >
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${
+                    selectedClass === className ? 'text-blue-100' : 'text-stone-400'
+                  }`}>
+                    Class
+                  </p>
+                  <h4 className="text-2xl font-black mb-2">{className}</h4>
+                  <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold ${
+                    selectedClass === className ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-600'
+                  }`}>
+                    <Users size={10} /> {count} Students
+                  </div>
+                  <div className={`mt-3 pt-3 border-t flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-widest ${
+                    selectedClass === className ? 'border-white/20 text-blue-100' : 'border-stone-200 text-stone-400'
+                  }`}>
+                    View Details
+                  </div>
+                </button>
+              ))}
+            </div>
+          </Card>
 
-          <div className="space-y-4">
-            {pendingEntries.length > 0 ? pendingEntries.map((entry) => (
-              <div key={entry.id} className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm flex flex-col md:flex-row gap-6 items-start">
-                <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100 flex flex-col items-center justify-center min-w-[100px]">
-                  <Award size={32} className="text-emerald-600 mb-2" />
-                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-tighter text-center">{entry.category}</p>
+          {/* Selected Class Students */}
+          {selectedClass && (
+            <Card className="p-8 border-blue-100 bg-blue-50/30 animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                  <h3 className="text-2xl font-black text-stone-900">Class {selectedClass} Directory</h3>
+                  <p className="text-sm text-stone-500 font-medium">Showing all students in {selectedClass}</p>
                 </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-lg font-bold text-stone-900">{entry.activityName || 'Unnamed Activity'}</h4>
-                    <span className="text-[10px] text-stone-400 font-bold uppercase">{entry.timestamp?.toDate().toLocaleDateString()}</span>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      placeholder="Search students..." 
+                      value={searchTerm}
+                      className="pl-10 pr-4 py-2 rounded-xl border border-blue-100 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
+                      onChange={(e) => handleSearch(e.target.value)}
+                    />
+                    <Search className="absolute left-3 top-2.5 text-stone-400" size={16} />
                   </div>
-                  <p className="text-sm text-stone-600 mb-4">Student: <span className="font-bold text-stone-900">{entry.studentName || entry.studentAdmissionNumber}</span></p>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleVerify(entry.id!, 'verified', 10)}
-                      className="flex-1 bg-emerald-100 text-emerald-700 py-2 rounded-xl text-xs font-bold hover:bg-emerald-200 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <CheckCircle size={14} /> Verify (+10 pts)
-                    </button>
-                    <button 
-                      onClick={() => handleVerify(entry.id!, 'rejected')}
-                      className="flex-1 bg-red-50 text-red-700 py-2 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <XCircle size={14} /> Reject
-                    </button>
-                  </div>
+                  <Button variant="ghost" onClick={() => setSelectedClass(null)} className="text-stone-400 hover:text-stone-900">
+                    <XCircle size={24} />
+                  </Button>
                 </div>
               </div>
-            )) : (
-              <div className="text-center py-20 bg-stone-50 rounded-3xl border border-dashed border-stone-200 text-stone-400 italic">
-                No pending activities to verify.
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredClassStudents.map(s => (
+                  <div key={s.admissionNumber} className="bg-white p-4 rounded-2xl border border-stone-100 flex items-center justify-between group hover:shadow-md transition-all">
+                    <div className="flex items-center gap-4">
+                      <img 
+                        src={s.photoURL || `https://ui-avatars.com/api/?name=${s.name}&background=random`} 
+                        className="w-12 h-12 rounded-xl object-cover"
+                        alt=""
+                      />
+                      <div>
+                        <p className="font-bold text-stone-900">{s.name}</p>
+                        <p className="text-[10px] text-stone-400 font-black uppercase tracking-widest">{s.admissionNumber}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-black text-blue-600">{s.totalPoints || 0}</p>
+                      <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Points</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
+            </Card>
+          )}
+
+          {/* Recent Submissions */}
+          <Card className="p-8 border-stone-100 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-2xl font-black text-stone-900 flex items-center gap-3">
+                <FileText className="text-blue-600" /> Recent Submissions
+              </h3>
+            </div>
+            <div className="space-y-4">
+              {recentSubmissions.length > 0 ? recentSubmissions.map(sub => (
+                <div key={sub.id} className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl border border-stone-100 hover:bg-white hover:shadow-md transition-all group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <FileText size={20} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-stone-900 group-hover:text-blue-600 transition-colors">{sub.title}</p>
+                      <p className="text-xs text-stone-500">
+                        {sub.studentName} • {sub.category}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                      Pending
+                    </span>
+                    <ChevronRight size={18} className="text-stone-300 group-hover:text-blue-600 transition-colors" />
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-12 bg-stone-50 rounded-3xl border border-dashed border-stone-200">
+                  <p className="text-stone-400 font-bold italic">No pending submissions to review.</p>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
 
-        {/* Quick Stats / Tools */}
+        {/* Sidebar Column */}
         <div className="space-y-8">
-          <div className="bg-emerald-900 text-white p-8 rounded-3xl shadow-xl shadow-emerald-900/20">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Users size={20} /> Staff Tools
-            </h3>
-            <div className="space-y-3">
-              <button className="w-full bg-white/10 hover:bg-white/20 p-4 rounded-2xl text-left transition-colors flex items-center justify-between group">
-                <span className="text-sm font-bold">Search Students</span>
-                <Search size={16} className="opacity-50 group-hover:opacity-100" />
-              </button>
-              <button className="w-full bg-white/10 hover:bg-white/20 p-4 rounded-2xl text-left transition-colors flex items-center justify-between group">
-                <span className="text-sm font-bold">Event Calendar</span>
-                <PlusCircle size={16} className="opacity-50 group-hover:opacity-100" />
-              </button>
+          {/* Top 3 Ranks */}
+          <Card className="p-8 bg-stone-900 text-white overflow-hidden relative">
+            <div className="relative z-10">
+              <h3 className="text-xl font-black mb-8 flex items-center gap-2">
+                <Award className="text-amber-400" /> Overall Top 3
+              </h3>
+              <div className="space-y-6">
+                {topStudents.map((s, idx) => (
+                  <div key={s.admissionNumber} className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${
+                      idx === 0 ? 'bg-amber-400 text-stone-900' :
+                      idx === 1 ? 'bg-stone-300 text-stone-900' :
+                      'bg-orange-400 text-stone-900'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold truncate">{s.name}</p>
+                      <p className="text-[10px] text-stone-400 uppercase tracking-widest">{s.class}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-emerald-400">{s.totalPoints || 0}</p>
+                      <p className="text-[8px] font-bold text-stone-500 uppercase">pts</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+          </Card>
 
-          <div className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm">
-            <h3 className="text-lg font-bold text-stone-900 mb-4 flex items-center gap-2">
-              <TrendingUp size={20} className="text-emerald-600" /> Performance Overview
-            </h3>
-            <p className="text-xs text-stone-500 leading-relaxed">
-              Monitor student participation levels across different skill categories. 
-              Verified activities contribute to the overall college ranking.
-            </p>
+          {/* About Sections */}
+          <div className="space-y-4">
+            <h4 className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] ml-2">Quick Info</h4>
+            {[
+              { key: 'about_college', label: 'Darul Huda', logoKey: 'college_logo' },
+              { key: 'about_safa', label: 'Safa Union', logoKey: 'safa_logo' },
+              { key: 'about_skillclub', label: 'Skill Club', logoKey: 'skillclub_logo' }
+            ].map(section => {
+              const item = content.find(c => c.key === section.key);
+              const logo = content.find(c => c.key === section.logoKey);
+              return (
+                <Card key={section.key} className="p-4 hover:bg-stone-50 transition-colors cursor-pointer group">
+                  <div className="flex items-center gap-3">
+                    <img src={logo?.value || `https://ui-avatars.com/api/?name=${section.label}`} alt="" className="w-8 h-8 object-contain" />
+                    <div className="flex-1 min-w-0">
+                      <h5 className="text-sm font-bold text-stone-900 truncate">{section.label}</h5>
+                      <p className="text-[10px] text-stone-500">{item?.value || 'No content available.'}</p>
+                    </div>
+                    <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-900 transition-colors" />
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </div>
-
-      {/* Upload Modal */}
-      {showUpload && (
-        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
-            <h3 className="text-2xl font-black text-stone-900 mb-6">Upload to Gallery</h3>
-            <form onSubmit={handleUpload} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Image URL</label>
-                <input 
-                  type="url" 
-                  value={uploadData.url}
-                  onChange={(e) => setUploadData({ ...uploadData, url: e.target.value })}
-                  placeholder="https://example.com/photo.jpg"
-                  className="w-full p-4 rounded-2xl border border-stone-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">Caption</label>
-                <input 
-                  type="text" 
-                  value={uploadData.caption}
-                  onChange={(e) => setUploadData({ ...uploadData, caption: e.target.value })}
-                  placeholder="Event name or description"
-                  className="w-full p-4 rounded-2xl border border-stone-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button 
-                  type="button"
-                  onClick={() => setShowUpload(false)}
-                  className="flex-1 py-4 rounded-2xl font-bold text-stone-500 hover:bg-stone-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  className="flex-1 bg-emerald-900 text-white py-4 rounded-2xl font-bold hover:bg-emerald-800 transition-all"
-                >
-                  Upload
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

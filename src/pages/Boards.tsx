@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs } from 'firebase/firestore';
+import { collection, query, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Board, BoardMember } from '../types';
 import { motion } from 'motion/react';
@@ -13,8 +13,8 @@ export default function Boards() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const boardsSnap = await getDocs(query(collection(db, 'boards')));
-        const membersSnap = await getDocs(query(collection(db, 'boardMembers')));
+        const boardsSnap = await getDocs(query(collection(db, 'boards'), limit(50)));
+        const membersSnap = await getDocs(query(collection(db, 'boardMembers'), limit(100)));
         
         setBoards(boardsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Board)));
         setMembers(membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BoardMember)));
@@ -42,9 +42,9 @@ export default function Boards() {
         animate={{ opacity: 1, y: 0 }}
         className="text-center mb-16"
       >
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">SAFA Boards</h1>
+        <h1 className="text-4xl font-black text-emerald-700 mb-4">Safa Union Boards</h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          The governing bodies and specialized boards of the Student Union.
+          The governing bodies and specialized boards of the Skill Club.
         </p>
       </motion.div>
 
