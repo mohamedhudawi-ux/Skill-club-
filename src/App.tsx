@@ -32,6 +32,10 @@ import ProfilePage from './pages/ProfilePage';
 import Portal from './pages/Portal';
 import SubmitWork from './pages/SubmitWork';
 import GraceMarks from './pages/GraceMarks';
+import ResourceLibrary from './pages/ResourceLibrary';
+import StudentPortfolio from './pages/StudentPortfolio';
+
+import ResumeBuilder from './pages/ResumeBuilder';
 
 function AppRoutes() {
   const { profile, loading: authLoading } = useAuth();
@@ -40,7 +44,7 @@ function AppRoutes() {
 
   if (quotaExceeded) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-brand-cream p-4 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-brand-background p-4 text-center">
         <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-stone-100 max-w-md w-full">
           <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="text-rose-600 w-10 h-10" />
@@ -60,8 +64,8 @@ function AppRoutes() {
 
   if (authLoading || settingsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-cream">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green"></div>
+      <div className="min-h-screen flex items-center justify-center bg-brand-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
       </div>
     );
   }
@@ -71,14 +75,10 @@ function AppRoutes() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={profile ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         
-        <Route path="/home" element={
-          <ProtectedRoute>
-            <Home />
-          </ProtectedRoute>
-        } />
+        <Route path="/home" element={<Navigate to="/" replace />} />
         
         <Route path="/skill-club" element={
           <ProtectedRoute>
@@ -86,17 +86,8 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         
-        <Route path="/gallery" element={
-          <ProtectedRoute>
-            <Gallery />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/calendar" element={
-          <ProtectedRoute>
-            <Calendar />
-          </ProtectedRoute>
-        } />
+        <Route path="/gallery" element={<Gallery />} />
+        <Route path="/calendar" element={<Calendar />} />
         
         <Route path="/clubs" element={
           <ProtectedRoute>
@@ -137,6 +128,12 @@ function AppRoutes() {
         <Route path="/grace-marks" element={
           <ProtectedRoute requiredRole="student">
             <GraceMarks />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/resources" element={
+          <ProtectedRoute>
+            <ResourceLibrary />
           </ProtectedRoute>
         } />
 
@@ -208,6 +205,12 @@ function AppRoutes() {
             <ProfilePage />
           </ProtectedRoute>
         } />
+        <Route path="/resume-builder" element={
+          <ProtectedRoute>
+            <ResumeBuilder />
+          </ProtectedRoute>
+        } />
+        <Route path="/portfolio/:admissionNumber" element={<StudentPortfolio />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

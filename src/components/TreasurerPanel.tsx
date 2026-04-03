@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, deleteDoc, doc, getDocs, where, writeBatch } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { Transaction, Program, Club, MonthlyReport } from '../types';
 import { Card } from './Card';
@@ -30,28 +30,35 @@ export default function TreasurerPanel() {
   const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [transactionsSnap, programsSnap, clubsSnap, reportsSnap] = await Promise.all([
-          getDocs(query(collection(db, 'transactions'), orderBy('date', 'desc'))),
-          getDocs(collection(db, 'programs')),
-          getDocs(collection(db, 'clubs')),
-          getDocs(query(collection(db, 'monthlyReports'), orderBy('month', 'desc')))
-        ]);
+    setLoading(true);
+    const unsubscribers: (() => void)[] = [];
 
-        setTransactions(transactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
-        setPrograms(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
-        setClubs(clubsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
-        setReports(reportsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MonthlyReport)));
-      } catch (error) {
-        console.error('Error fetching treasurer data:', error);
-      } finally {
-        setLoading(false);
-      }
+    const setupListeners = () => {
+      // Transactions
+      unsubscribers.push(onSnapshot(query(collection(db, 'transactions'), orderBy('date', 'desc')), (snap) => {
+        setTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'transactions')));
+
+      // Programs
+      unsubscribers.push(onSnapshot(collection(db, 'programs'), (snap) => {
+        setPrograms(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'programs')));
+
+      // Clubs
+      unsubscribers.push(onSnapshot(collection(db, 'clubs'), (snap) => {
+        setClubs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubs')));
+
+      // Reports
+      unsubscribers.push(onSnapshot(query(collection(db, 'monthlyReports'), orderBy('month', 'desc')), (snap) => {
+        setReports(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MonthlyReport)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'monthlyReports')));
+
+      setLoading(false);
     };
 
-    fetchData();
+    setupListeners();
+    return () => unsubscribers.forEach(unsub => unsub());
   }, []);
 
   const generateMonthlyReport = async (targetMonth?: string | React.MouseEvent) => {
@@ -420,7 +427,7 @@ This report was automatically generated based on real-time data analysis of trea
             </Card>
           </div>
         </>
-      ) : (
+      ) : activeTab === 'reports' ? (
         <div className="space-y-8">
           <div className="flex items-center justify-between">
             <div>
@@ -481,7 +488,7 @@ This report was automatically generated based on real-time data analysis of trea
             )}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Modals */}
       <ConfirmModal

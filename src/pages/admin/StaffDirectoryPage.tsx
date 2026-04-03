@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { collection, getDocs, query, where, doc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { UserProfile, UserRole } from '../../types';
+import { CLASS_LIST } from '../../constants';
 import { Trash2, Edit2, X } from 'lucide-react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -60,11 +61,24 @@ export default function StaffDirectoryPage() {
         authUpdate.photoURL = editingStaff.photoURL;
       }
 
-      await fetch('/api/admin/update-user-profile', {
+      const authResponse = await fetch('/api/admin/update-user-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(authUpdate)
       });
+
+      if (!authResponse.ok) {
+        const result = await authResponse.json();
+        let errorMsg = result.error || 'Failed to update Auth profile';
+        if (errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('Identity Toolkit API')) {
+          errorMsg = `Firebase Authentication (Identity Toolkit API) is not enabled. 
+          
+1. Enable it: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=531260372208
+2. Click "Get Started" in Firebase Auth: https://console.firebase.google.com/project/gen-lang-client-0615445747/authentication
+3. Wait 3-5 minutes.`;
+        }
+        throw new Error(errorMsg);
+      }
 
       setStatus({ type: 'success', msg: `Staff ${editingStaff.displayName} updated successfully!` });
       setEditingStaff(null);
@@ -78,10 +92,31 @@ export default function StaffDirectoryPage() {
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: deleteConfirm })
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        let errorMsg = result.error || 'Failed to delete user from Auth';
+        if (errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('Identity Toolkit API')) {
+          errorMsg = `Firebase Authentication (Identity Toolkit API) is not enabled. 
+          
+1. Enable it: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=531260372208
+2. Click "Get Started" in Firebase Auth: https://console.firebase.google.com/project/gen-lang-client-0615445747/authentication
+3. Wait 3-5 minutes.`;
+        }
+        throw new Error(errorMsg);
+      }
+
       await deleteDoc(doc(db, 'users', deleteConfirm));
       setDeleteConfirm(null);
-    } catch (error) {
+      setStatus({ type: 'success', msg: 'Staff member deleted successfully.' });
+    } catch (error: any) {
       console.error('Failed to delete staff:', error);
+      setStatus({ type: 'error', msg: error.message || 'Failed to delete staff.' });
     }
   };
 
@@ -149,74 +184,76 @@ export default function StaffDirectoryPage() {
 
       {editingStaff && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <Card className="p-8 max-w-md w-full shadow-2xl relative">
-            <div className="flex justify-between items-center mb-6">
+          <Card className="p-8 max-w-md w-full shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center mb-6 flex-shrink-0">
               <h3 className="text-2xl font-bold text-stone-900">Edit Staff Member</h3>
               <Button variant="ghost" onClick={() => setEditingStaff(null)} className="p-2 hover:bg-stone-100 rounded-full">
                 <X size={24} />
               </Button>
             </div>
-            <form onSubmit={handleUpdateStaff} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Display Name</label>
-                <input 
-                  type="text"
-                  value={editingStaff.displayName || ''}
-                  onChange={e => setEditingStaff({ ...editingStaff, displayName: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Phone</label>
-                <input 
-                  type="text"
-                  value={editingStaff.phone || ''}
-                  onChange={e => setEditingStaff({ ...editingStaff, phone: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Date of Birth</label>
-                <input 
-                  type="date"
-                  value={editingStaff.dob || ''}
-                  onChange={e => setEditingStaff({ ...editingStaff, dob: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Address</label>
-                <textarea 
-                  value={editingStaff.address || ''}
-                  onChange={e => setEditingStaff({ ...editingStaff, address: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none min-h-[80px]"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Role</label>
-                <select 
-                  value={editingStaff.role}
-                  onChange={e => setEditingStaff({ ...editingStaff, role: e.target.value as UserRole })}
-                  className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                >
-                  <option value="staff">Staff</option>
-                  <option value="academic">Academic</option>
-                  <option value="safa">Safa</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div>
-                <ImageUpload
-                  label="Update Photo"
-                  onUpload={(base64) => setEditingStaff({ ...editingStaff, photoURL: base64 })}
-                  currentImageUrl={editingStaff.photoURL}
-                />
-              </div>
-              <Button type="submit" disabled={isUpdating} className="w-full">
-                {isUpdating ? 'Updating...' : 'Save Changes'}
-              </Button>
-            </form>
+            <div className="overflow-y-auto pr-2 custom-scrollbar">
+              <form onSubmit={handleUpdateStaff} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Display Name</label>
+                  <input 
+                    type="text"
+                    value={editingStaff.displayName || ''}
+                    onChange={e => setEditingStaff({ ...editingStaff, displayName: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Phone</label>
+                  <input 
+                    type="text"
+                    value={editingStaff.phone || ''}
+                    onChange={e => setEditingStaff({ ...editingStaff, phone: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Date of Birth</label>
+                  <input 
+                    type="date"
+                    value={editingStaff.dob || ''}
+                    onChange={e => setEditingStaff({ ...editingStaff, dob: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Address</label>
+                  <textarea 
+                    value={editingStaff.address || ''}
+                    onChange={e => setEditingStaff({ ...editingStaff, address: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none min-h-[80px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Role</label>
+                  <select 
+                    value={editingStaff.role}
+                    onChange={e => setEditingStaff({ ...editingStaff, role: e.target.value as UserRole })}
+                    className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  >
+                    <option value="staff">Staff</option>
+                    <option value="academic">Academic</option>
+                    <option value="safa">Safa</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <ImageUpload
+                    label="Update Photo"
+                    onUpload={(base64) => setEditingStaff({ ...editingStaff, photoURL: base64 })}
+                    currentImageUrl={editingStaff.photoURL}
+                  />
+                </div>
+                <Button type="submit" disabled={isUpdating} className="w-full">
+                  {isUpdating ? 'Updating...' : 'Save Changes'}
+                </Button>
+              </form>
+            </div>
           </Card>
         </div>
       )}

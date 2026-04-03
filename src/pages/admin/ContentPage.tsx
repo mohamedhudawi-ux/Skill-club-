@@ -59,7 +59,7 @@ export default function ContentPage() {
       
       <div className="space-y-6">
         <h3 className="text-xl font-bold text-stone-900">Logos</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[
             { key: 'college_logo', label: 'Darul Huda Punganur Logo' },
             { key: 'safa_logo', label: 'Safa Logo' },

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, runTransaction, addDoc, serverTimestamp, writeBatch, limit, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { WorkSubmission, Student, SKILL_CLUB_RULES } from '../types';
 import { Card } from './Card';
@@ -20,21 +20,18 @@ export function AdminSubmissions() {
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const q = query(collection(db, 'workSubmissions'), orderBy('timestamp', 'desc'), limit(50));
-        const snapshot = await getDocs(q);
-        const subs: WorkSubmission[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission));
-        setSubmissions(subs);
-      } catch (error) {
-        console.error('Error fetching submissions:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    setLoading(true);
+    const q = query(collection(db, 'workSubmissions'), orderBy('timestamp', 'desc'), limit(50));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setSubmissions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'workSubmissions');
+      setLoading(false);
+    });
 
-    fetchData();
+    return () => unsubscribe();
   }, []);
 
   const handleAction = async (submission: WorkSubmission, action: 'approved' | 'rejected') => {

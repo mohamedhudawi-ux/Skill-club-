@@ -12,6 +12,7 @@ import {
   Globe, Facebook, Instagram, MessageCircle, ShieldCheck, Send,
   Trash2, Edit2, Plus, X, BookOpen
 } from 'lucide-react';
+import { BrandingHeader } from '../components/BrandingHeader';
 import { QueryBox } from '../components/QueryBox';
 import { StaffDashboard } from '../components/StaffDashboard';
 import { SafaDashboard } from '../components/SafaDashboard';
@@ -49,6 +50,82 @@ export default function Dashboard() {
     }
   }, [tabFromUrl]);
 
+  // Scoreboard fetch
+  useEffect(() => {
+    if (activeTab === 'scoreboard' && isStudent) {
+      const fetchScoreboard = async () => {
+        const qTop = query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(10));
+        const topSnap = await getDocs(qTop);
+        setTopStudents(topSnap.docs.map(doc => doc.data() as Student));
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const qMonthly = query(
+          collection(db, 'skillClubEntries'),
+          where('timestamp', '>=', startOfMonth),
+          orderBy('timestamp', 'desc'),
+          limit(100)
+        );
+        const monthlySnap = await getDocs(qMonthly);
+        const monthlyEntries = monthlySnap.docs.map(doc => doc.data() as SkillClubEntry);
+        const aggregation: Record<string, {name: string, points: number, photoURL?: string}> = {};
+        monthlyEntries.forEach(entry => {
+          if (!aggregation[entry.studentAdmissionNumber]) {
+            aggregation[entry.studentAdmissionNumber] = { name: 'Unknown Student', points: 0 };
+          }
+          aggregation[entry.studentAdmissionNumber].points += entry.points;
+        });
+        const sorted = Object.entries(aggregation)
+          .map(([admissionNumber, data]) => ({ admissionNumber, ...data }))
+          .sort((a, b) => b.points - a.points)
+          .slice(0, 3);
+        setTopMonthly(sorted);
+
+        if (student?.class) {
+          const qClass = query(collection(db, 'students'), where('class', '==', student.class), limit(50));
+          const classSnap = await getDocs(qClass);
+          const students = classSnap.docs.map(d => d.data() as Student);
+          students.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+          setClassStudents(students);
+        }
+      };
+      fetchScoreboard();
+    }
+  }, [activeTab, isStudent, student?.class]);
+
+  // Entries and Programs fetch
+  useEffect(() => {
+    if (activeTab === 'overview' && isStudent && profile?.admissionNumber) {
+      const fetchOverview = async () => {
+        const qEntries = query(
+          collection(db, 'skillClubEntries'),
+          where('studentAdmissionNumber', '==', profile.admissionNumber),
+          orderBy('timestamp', 'desc'),
+          limit(20)
+        );
+        const entriesSnap = await getDocs(qEntries);
+        setEntries(entriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
+
+        const qPrograms = query(collection(db, 'programs'), where('date', '>=', new Date().toISOString().split('T')[0]), orderBy('date', 'asc'), limit(5));
+        const programsSnap = await getDocs(qPrograms);
+        setPrograms(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      };
+      fetchOverview();
+    }
+  }, [activeTab, isStudent, profile?.admissionNumber]);
+
+  // Staff Directory fetch
+  useEffect(() => {
+    if (activeTab === 'staff-directory' && isStudent) {
+      const fetchStaff = async () => {
+        const qStaff = query(collection(db, 'users'), where('role', 'in', ['staff', 'academic', 'safa']));
+        const staffSnap = await getDocs(qStaff);
+        setStaffList(staffSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      };
+      fetchStaff();
+    }
+  }, [activeTab, isStudent]);
+
   useEffect(() => {
     if (!profile) {
       setLoading(false);
@@ -63,7 +140,7 @@ export default function Dashboard() {
     }
 
     // --- STUDENT SPECIFIC DATA FETCHING ---
-    const fetchData = async () => {
+    const fetchBaseData = async () => {
       if (!isStudent || !profile?.admissionNumber) return;
 
       try {
@@ -83,81 +160,23 @@ export default function Dashboard() {
         const notifySnap = await getDocs(qNotify);
         setNotifications(notifySnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)));
 
-        // Scoreboard fetch
-        if (activeTab === 'overview' || activeTab === 'scoreboard') {
-          const qTop = query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(10));
-          const topSnap = await getDocs(qTop);
-          setTopStudents(topSnap.docs.map(doc => doc.data() as Student));
-        }
-
-        // Monthly Top 3
-        if (activeTab === 'scoreboard') {
-          const now = new Date();
-          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-          const qMonthly = query(
-            collection(db, 'skillClubEntries'),
-            where('timestamp', '>=', startOfMonth),
-            orderBy('timestamp', 'desc'),
-            limit(100)
-          );
-          const monthlySnap = await getDocs(qMonthly);
-          const monthlyEntries = monthlySnap.docs.map(doc => doc.data() as SkillClubEntry);
-          const aggregation: Record<string, {name: string, points: number, photoURL?: string}> = {};
-          monthlyEntries.forEach(entry => {
-            if (!aggregation[entry.studentAdmissionNumber]) {
-              aggregation[entry.studentAdmissionNumber] = { name: 'Unknown Student', points: 0 };
-            }
-            aggregation[entry.studentAdmissionNumber].points += entry.points;
+      } catch (error: any) {
+        console.error('Error fetching dashboard base data:', error);
+        // Log more details to help debugging
+        if (error.code === 'permission-denied') {
+          console.error('Permission denied details:', {
+            uid: profile?.uid,
+            admissionNumber: profile?.admissionNumber,
+            isStudent
           });
-          const sorted = Object.entries(aggregation)
-            .map(([admissionNumber, data]) => ({ admissionNumber, ...data }))
-            .sort((a, b) => b.points - a.points)
-            .slice(0, 3);
-          setTopMonthly(sorted);
-
-          // Class students
-          if (student?.class) {
-            const qClass = query(collection(db, 'students'), where('class', '==', student.class), limit(50));
-            const classSnap = await getDocs(qClass);
-            const students = classSnap.docs.map(d => d.data() as Student);
-            students.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
-            setClassStudents(students);
-          }
         }
-
-        // Entries
-        if (activeTab === 'overview') {
-          const qEntries = query(
-            collection(db, 'skillClubEntries'),
-            where('studentAdmissionNumber', '==', profile.admissionNumber),
-            orderBy('timestamp', 'desc'),
-            limit(20)
-          );
-          const entriesSnap = await getDocs(qEntries);
-          setEntries(entriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
-
-          // Programs
-          const qPrograms = query(collection(db, 'programs'), where('date', '>=', new Date().toISOString().split('T')[0]), orderBy('date', 'asc'), limit(5));
-          const programsSnap = await getDocs(qPrograms);
-          setPrograms(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }
-
-        // Staff Directory
-        if (activeTab === 'staff-directory') {
-          const qStaff = query(collection(db, 'users'), where('role', 'in', ['staff', 'academic', 'safa']));
-          const staffSnap = await getDocs(qStaff);
-          setStaffList(staffSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }
-
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, [profile, isStudent, isAdmin, isStaff, isSafa, activeTab]);
+    fetchBaseData();
+  }, [profile, isStudent, isAdmin, isStaff, isSafa]);
 
   if (loading) return (
     <div className="animate-pulse space-y-8">
@@ -191,12 +210,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      <BrandingHeader />
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-black text-stone-900">
-            {student ? `Welcome back, ${student.name.split(' ')[0]}!` : 'Dashboard'}
+            Dashboard
           </h2>
-          <p className="text-stone-500 font-medium">Welcome to the Skill Club & Academic Hub.</p>
+          <p className="text-stone-500 font-medium">Skill Club & Academic Hub.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {isAdmin && (
@@ -216,63 +237,6 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-
-      {/* Student Profile Header */}
-      {student && (
-        <div className="relative overflow-hidden bg-stone-900 rounded-[2rem] shadow-2xl border border-stone-800">
-          {/* Decorative Background Elements */}
-          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full -mr-24 -mt-24 blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/10 rounded-full -ml-24 -mb-24 blur-3xl" />
-          
-          <div className="relative p-6 md:p-10">
-            <div className="flex flex-col xl:flex-row gap-8 xl:gap-10 items-center xl:items-start">
-              {/* Profile Image & Main Info */}
-              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 shrink-0 w-full xl:w-auto">
-                <div className="relative group shrink-0">
-                  <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-600 to-emerald-400 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000" />
-                  <img 
-                    src={student.photoURL || `https://ui-avatars.com/api/?name=${student.name}&background=random&size=200`} 
-                    alt={student.name} 
-                    className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-white/20 shadow-xl"
-                  />
-                </div>
-                
-                <div className="min-w-0 text-center sm:text-left">
-                  <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-3 break-words leading-tight">{student.name}</h2>
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                    <span className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-[11px] font-black uppercase tracking-widest shrink-0">
-                      ID: {student.admissionNumber}
-                    </span>
-                    <span className="px-3 py-1 bg-white/10 text-stone-300 rounded-lg text-[11px] font-black uppercase tracking-widest shrink-0">
-                      Class: {student.class || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Detailed Info Grid - Responsive Layout */}
-              <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  { icon: Calendar, label: 'DOB', value: student.dob },
-                  { icon: User, label: 'Father', value: student.fatherName },
-                  { icon: Mail, label: 'Email', value: student.email },
-                  { icon: Phone, label: 'Contact', value: student.phone }
-                ].map((info, idx) => (
-                  <div key={idx} className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center gap-4 hover:bg-white/10 transition-colors">
-                    <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-emerald-400 shrink-0">
-                      <info.icon size={20} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-black text-stone-500 uppercase tracking-widest mb-0.5">{info.label}</p>
-                      <p className="text-sm font-bold text-stone-200 break-words leading-snug">{info.value || 'Not set'}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-stone-200 overflow-x-auto">

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, addDoc, setDoc, getDocs, where, increment, serverTimestamp, limit, orderBy, writeBatch } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { UserProfile, UserRole, Club, Board, OfficeBearer, Student } from '../types';
+import { UserProfile, UserRole, Club, Board, OfficeBearer, Student, CLASS_LIST } from '../types';
 import { 
   Shield, 
   User, 
@@ -36,6 +36,7 @@ import {
   GraduationCap,
   Wallet,
   Search,
+  Trophy,
   Calendar as CalendarIcon
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
@@ -46,7 +47,8 @@ import { ClubMemberBulkUpload } from '../components/ClubMemberBulkUpload';
 import { StudentBulkUpload } from '../components/StudentBulkUpload';
 import { BulkUpload } from '../components/BulkUpload';
 import { ImageUpload } from '../components/ImageUpload';
-import { CLASS_LIST } from '../constants';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 import { AdminDashboard } from '../components/AdminDashboard';
 import { StaffDashboard } from '../components/StaffDashboard';
@@ -55,7 +57,7 @@ import { AdminGraceMarks } from '../components/AdminGraceMarks';
 import TreasurerPanel from '../components/TreasurerPanel';
 import SettingsPage from './admin/SettingsPage';
 
-type Tab = 'dashboard' | 'profile' | 'gallery' | 'clubs' | 'boards' | 'calendar' | 'users' | 'staff' | 'club-points' | 'club-members' | 'students' | 'submissions' | 'gracemarks' | 'treasury' | 'settings';
+type Tab = 'dashboard' | 'profile' | 'gallery' | 'clubs' | 'boards' | 'calendar' | 'users' | 'staff' | 'club-points' | 'club-members' | 'students' | 'submissions' | 'gracemarks' | 'treasury' | 'settings' | 'reports';
 
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -243,11 +245,23 @@ export default function AdminCommandCenter() {
       }
 
       if (coll === 'users') {
-        await fetch('/api/admin/delete-user', {
+        const response = await fetch('/api/admin/delete-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ uid: id })
         });
+        if (!response.ok) {
+          const result = await response.json();
+          let errorMsg = result.error || 'Failed to delete user from Auth';
+          if (errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('Identity Toolkit API')) {
+            errorMsg = `Firebase Authentication (Identity Toolkit API) is not enabled. 
+            
+1. Enable it: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=531260372208
+2. Click "Get Started" in Firebase Auth: https://console.firebase.google.com/project/gen-lang-client-0615445747/authentication
+3. Wait 3-5 minutes.`;
+          }
+          throw new Error(errorMsg);
+        }
       }
       try {
         await deleteDoc(doc(db, coll, id));
@@ -349,7 +363,7 @@ export default function AdminCommandCenter() {
           });
 
           // Update Auth Profile
-          await fetch('/api/admin/update-user-profile', {
+          const authResponse = await fetch('/api/admin/update-user-profile', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -358,13 +372,37 @@ export default function AdminCommandCenter() {
               photoURL: editingEntity.data.photoURL
             })
           });
+          if (!authResponse.ok) {
+            const result = await authResponse.json();
+            let errorMsg = result.error || 'Failed to update Auth profile';
+            if (errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('Identity Toolkit API')) {
+              errorMsg = `Firebase Authentication (Identity Toolkit API) is not enabled. 
+              
+1. Enable it: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=531260372208
+2. Click "Get Started" in Firebase Auth: https://console.firebase.google.com/project/gen-lang-client-0615445747/authentication
+3. Wait 3-5 minutes.`;
+            }
+            throw new Error(errorMsg);
+          }
 
           if (newPassword) {
-            await fetch('/api/admin/update-user-password', {
+            const passResponse = await fetch('/api/admin/update-user-password', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ uid: user.uid, newPassword })
             });
+            if (!passResponse.ok) {
+              const result = await passResponse.json();
+              let errorMsg = result.error || 'Failed to update password';
+              if (errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('Identity Toolkit API')) {
+                errorMsg = `Firebase Authentication (Identity Toolkit API) is not enabled. 
+                
+1. Enable it: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=531260372208
+2. Click "Get Started" in Firebase Auth: https://console.firebase.google.com/project/gen-lang-client-0615445747/authentication
+3. Wait 3-5 minutes.`;
+              }
+              throw new Error(errorMsg);
+            }
           }
         }
       } else {
@@ -402,11 +440,23 @@ export default function AdminCommandCenter() {
           
           // If it's a user, delete from Auth via API
           if (collName === 'users') {
-            await fetch('/api/admin/delete-user', {
+            const response = await fetch('/api/admin/delete-user', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ uid: docSnap.id })
             });
+            if (!response.ok) {
+              const result = await response.json();
+              let errorMsg = result.error || 'Failed to delete user from Auth';
+              if (errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('Identity Toolkit API')) {
+                errorMsg = `Firebase Authentication (Identity Toolkit API) is not enabled. 
+                
+1. Enable it: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=531260372208
+2. Click "Get Started" in Firebase Auth: https://console.firebase.google.com/project/gen-lang-client-0615445747/authentication
+3. Wait 3-5 minutes.`;
+              }
+              throw new Error(errorMsg);
+            }
           }
 
           currentBatch.delete(docSnap.ref);
@@ -446,10 +496,35 @@ export default function AdminCommandCenter() {
     setIsCreatingStaff(true);
     try {
       const email = newStaffData.email || `staff_${newStaffData.phone}@skill.edu`;
-      
-      // Generate a random ID for the user
-      const newStaffRef = doc(collection(db, 'users'));
-      const uid = newStaffRef.id;
+      const password = newStaffData.phone || 'password123';
+
+      const response = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          displayName: newStaffData.name,
+          role: newStaffData.role,
+          phone: newStaffData.phone
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        let errorMsg = result.error || 'Failed to create staff in Auth';
+        if (errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('Identity Toolkit API')) {
+          errorMsg = `Firebase Authentication (Identity Toolkit API) is not enabled. 
+          
+1. Enable it: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=531260372208
+2. Click "Get Started" in Firebase Auth: https://console.firebase.google.com/project/gen-lang-client-0615445747/authentication
+3. Wait 3-5 minutes.`;
+        }
+        throw new Error(errorMsg);
+      }
+
+      const uid = result.uid;
+      const newStaffRef = doc(db, 'users', uid);
       
       try {
         await setDoc(newStaffRef, {
@@ -667,6 +742,92 @@ export default function AdminCommandCenter() {
       </div>
     </div>
   );
+
+  const renderReports = () => (
+    <div className="space-y-8">
+      <Card className="p-8">
+        <h3 className="text-xl font-black text-stone-900 mb-6">Automated Reporting</h3>
+        <p className="text-stone-500 mb-8 font-medium">Generate and download comprehensive PDF reports of student performance and club activities.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="p-6 border-2 border-stone-100 hover:border-emerald-500 transition-all group">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                <Users size={24} />
+              </div>
+              <div>
+                <h4 className="font-black text-stone-900">Student Performance</h4>
+                <p className="text-xs text-stone-500 font-bold uppercase tracking-widest">Full Directory</p>
+              </div>
+            </div>
+            <Button onClick={() => generateStudentReport()} className="w-full flex items-center justify-center gap-2">
+              <Download size={18} /> Download PDF
+            </Button>
+          </Card>
+
+          <Card className="p-6 border-2 border-stone-100 hover:border-emerald-500 transition-all group">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl group-hover:bg-amber-600 group-hover:text-white transition-all">
+                <Trophy size={24} />
+              </div>
+              <div>
+                <h4 className="font-black text-stone-900">Club Standings</h4>
+                <p className="text-xs text-stone-500 font-bold uppercase tracking-widest">Points & Rankings</p>
+              </div>
+            </div>
+            <Button onClick={() => generateClubReport()} className="w-full flex items-center justify-center gap-2 bg-stone-900 hover:bg-stone-800">
+              <Download size={18} /> Download PDF
+            </Button>
+          </Card>
+        </div>
+      </Card>
+    </div>
+  );
+
+  const generateStudentReport = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text('Safa Union Student Performance Report', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+    
+    (doc as any).autoTable({
+      startY: 40,
+      head: [['Admission', 'Name', 'Class', 'Total Points', 'Badges']],
+      body: students.map(s => [
+        s.admissionNumber, 
+        s.name, 
+        s.class, 
+        s.totalPoints || 0,
+        (s.badges || []).length
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129] },
+    });
+    doc.save('student_performance_report.pdf');
+  };
+
+  const generateClubReport = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text('Safa Union Club Performance Report', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+    
+    (doc as any).autoTable({
+      startY: 40,
+      head: [['Club Name', 'Total Points', 'Description']],
+      body: clubs.map(c => [
+        c.name, 
+        c.totalPoints || 0,
+        c.description
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129] },
+    });
+    doc.save('club_performance_report.pdf');
+  };
 
   const renderClubs = () => (
     <div className="space-y-8">
@@ -1443,11 +1604,12 @@ export default function AdminCommandCenter() {
           { id: 'submissions', label: 'Submissions', icon: FileText },
           { id: 'gracemarks', label: 'Grace Marks', icon: Award },
           { id: 'treasury', label: 'Treasury Panel', icon: Wallet },
+          { id: 'reports', label: 'Reports', icon: ClipboardList },
         ] : []),
       ]
     },
     ...(role === 'admin' || role === 'staff' ? [{
-      title: 'Student Management',
+      title: 'User Management',
       items: [
         { id: 'students', label: 'Add New Student', icon: Users },
         { id: 'users', label: 'User Profiles', icon: UserCircle },
@@ -1559,6 +1721,7 @@ export default function AdminCommandCenter() {
           {activeTab === 'profile' && renderProfile()}
           {activeTab === 'club-points' && renderClubPoints()}
           {activeTab === 'settings' && renderSettings()}
+          {activeTab === 'reports' && renderReports()}
         </div>
       </div>
 
@@ -1588,17 +1751,22 @@ export default function AdminCommandCenter() {
                       className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
-                  {editingEntity.type === 'student' && (
+                  {(editingEntity.type === 'student') && (
                     <div>
-                      <label className="block text-xs font-bold text-stone-400 uppercase mb-1">Class</label>
-                      <input 
+                      <label className="block text-xs font-bold text-stone-400 uppercase mb-1">
+                        Class
+                      </label>
+                      <select 
                         value={editingEntity.data.class || ''}
                         onChange={e => setEditingEntity({
                           ...editingEntity, 
                           data: { ...editingEntity.data, class: e.target.value }
                         })}
-                        className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
+                        className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                      >
+                        <option value="">Select Class</option>
+                        {CLASS_LIST.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                      </select>
                     </div>
                   )}
                   <div>
@@ -1742,12 +1910,17 @@ export default function AdminCommandCenter() {
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Class</label>
-                <input 
+                <select 
                   name="class" 
                   defaultValue={editingStudent.class} 
                   className="w-full px-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white" 
                   required 
-                />
+                >
+                  <option value="">Select Class</option>
+                  {CLASS_LIST.map(cls => (
+                    <option key={cls} value={cls}>{cls}</option>
+                  ))}
+                </select>
               </div>
               
               <div className="pt-4 flex justify-end gap-3">

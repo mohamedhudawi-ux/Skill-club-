@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, updateDoc, doc, deleteDoc, limit, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { useSettings } from '../SettingsContext';
 import { Program, SKILL_CLUB_CATEGORIES, SiteContent, OfficeBearer, Board, BoardMember, Club, Transaction } from '../types';
@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from './Card';
 import { Button } from './Button';
 import { ImageUpload } from './ImageUpload';
+import { BrandingHeader } from './BrandingHeader';
 
 export function SafaDashboard() {
   const navigate = useNavigate();
@@ -45,29 +46,42 @@ export function SafaDashboard() {
   }, [officeBearers.length]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [programsSnap, bearersSnap, boardsSnap, boardMembersSnap, clubsSnap, transactionsSnap] = await Promise.all([
-          getDocs(query(collection(db, 'programs'), orderBy('timestamp', 'desc'), limit(10))),
-          getDocs(query(collection(db, 'officeBearers'), limit(50))),
-          getDocs(query(collection(db, 'boards'), limit(50))),
-          getDocs(query(collection(db, 'boardMembers'), limit(200))),
-          getDocs(query(collection(db, 'clubs'), orderBy('totalPoints', 'desc'), limit(10))),
-          getDocs(query(collection(db, 'transactions'), orderBy('timestamp', 'desc'), limit(20)))
-        ]);
+    const unsubscribers: (() => void)[] = [];
 
-        setRecentEvents(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
-        setOfficeBearers(bearersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as OfficeBearer)));
-        setBoards(boardsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Board)));
-        setBoardMembers(boardMembersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BoardMember)));
-        setClubs(clubsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
-        setTransactions(transactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
-      } catch (error) {
-        console.error('Error fetching Safa Dashboard data:', error);
-      }
+    const setupListeners = () => {
+      // Programs
+      unsubscribers.push(onSnapshot(query(collection(db, 'programs'), orderBy('timestamp', 'desc'), limit(10)), (snap) => {
+        setRecentEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'programs')));
+
+      // Office Bearers
+      unsubscribers.push(onSnapshot(query(collection(db, 'officeBearers'), limit(50)), (snap) => {
+        setOfficeBearers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as OfficeBearer)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'officeBearers')));
+
+      // Boards
+      unsubscribers.push(onSnapshot(query(collection(db, 'boards'), limit(50)), (snap) => {
+        setBoards(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Board)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'boards')));
+
+      // Board Members
+      unsubscribers.push(onSnapshot(query(collection(db, 'boardMembers'), limit(200)), (snap) => {
+        setBoardMembers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BoardMember)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'boardMembers')));
+
+      // Clubs
+      unsubscribers.push(onSnapshot(query(collection(db, 'clubs'), orderBy('totalPoints', 'desc'), limit(10)), (snap) => {
+        setClubs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubs')));
+
+      // Transactions
+      unsubscribers.push(onSnapshot(query(collection(db, 'transactions'), orderBy('timestamp', 'desc'), limit(20)), (snap) => {
+        setTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'transactions')));
     };
 
-    fetchData();
+    setupListeners();
+    return () => unsubscribers.forEach(unsub => unsub());
   }, []);
 
   const handleCreateEvent = async (e: React.FormEvent) => {
@@ -136,8 +150,12 @@ export function SafaDashboard() {
     { label: 'Office Bearers', value: officeBearers.length, icon: Award, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
+  const collegeLogo = siteContent.find(c => c.key === 'college_logo')?.value;
+
   return (
     <div className="space-y-10 pb-20">
+      <BrandingHeader />
+
       {/* Editorial Hero Section */}
       <section className="relative h-[450px] rounded-[48px] overflow-hidden bg-stone-900 text-white flex flex-col justify-end p-10 md:p-20">
         <div className="absolute inset-0">
@@ -419,6 +437,37 @@ export function SafaDashboard() {
                     <span className={`text-[10px] font-black px-3 py-1.5 rounded-xl ${badge.color}`}>{badge.points} PTS</span>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+
+          {/* About Darul Huda Punganur Section */}
+          <div className="bg-white p-12 rounded-[48px] border border-stone-100 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full -mr-32 -mt-32" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="bg-emerald-50 w-16 h-16 rounded-3xl flex items-center justify-center">
+                  <Layout size={32} className="text-emerald-600" />
+                </div>
+                <h3 className="text-3xl font-black text-stone-900 uppercase tracking-tighter">Darul Huda Punganur</h3>
+              </div>
+              <div className="grid grid-cols-1 gap-10 items-center">
+                <div>
+                  <p className="text-stone-600 text-lg leading-relaxed mb-8">
+                    {siteContent.find(c => c.key === 'about_college')?.value || siteContent.find(c => c.key === 'about_dhpc')?.value || 'Information about Darul Huda Punganur will appear here.'}
+                  </p>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => {
+                      const key = siteContent.find(c => c.key === 'about_college') ? 'about_college' : 'about_dhpc';
+                      setEditingContent({ key, value: siteContent.find(c => c.key === key)?.value || '' });
+                      setShowContentModal(true);
+                    }}
+                    className="bg-stone-100 text-stone-900 rounded-2xl px-8 py-4 font-black uppercase tracking-widest text-[10px] hover:bg-stone-200"
+                  >
+                    Edit About Content
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

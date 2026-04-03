@@ -115,7 +115,7 @@ export const ClubMemberBulkUpload: React.FC = () => {
           <button 
             onClick={processCsv} 
             disabled={isProcessing}
-            className="bg-brand-green text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-900 transition-all disabled:opacity-50"
+            className="bg-brand-primary text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-900 transition-all disabled:opacity-50"
           >
             {isProcessing ? 'Processing...' : 'Upload Members'}
           </button>

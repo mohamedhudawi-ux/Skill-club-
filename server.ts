@@ -1,5 +1,4 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import admin from 'firebase-admin';
@@ -27,6 +26,28 @@ async function startServer() {
 
   app.use(express.json());
 
+  const handleAuthError = (error, res) => {
+    console.error('Auth Error:', error);
+    let errorMessage = error.message;
+    
+    // Check for Identity Toolkit API disabled error
+    const isIdentityToolkitError = 
+      errorMessage.includes('identitytoolkit.googleapis.com') || 
+      errorMessage.includes('Identity Toolkit API') ||
+      (error.errorInfo && JSON.stringify(error.errorInfo).includes('identitytoolkit.googleapis.com'));
+
+    if (isIdentityToolkitError) {
+      const projectId = firebaseConfig.projectId || '531260372208';
+      errorMessage = `Firebase Authentication (Identity Toolkit API) is not enabled in your Google Cloud project. 
+      
+1. Please enable it here: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=${projectId}
+2. Also, go to the Firebase Console and click "Get Started" in the Authentication section: https://console.firebase.google.com/project/${projectId}/authentication
+3. After enabling, wait 2-3 minutes for propagation.`;
+    }
+    
+    res.status(500).json({ error: errorMessage });
+  };
+
   // API Routes
   app.post('/api/admin/create-user', async (req, res) => {
     const { email, password, displayName, name, role } = req.body;
@@ -42,10 +63,10 @@ async function startServer() {
         if (password) {
           await admin.auth().updateUser(userRecord.uid, { password });
         }
-      } catch (e: any) {
+      } catch (e) {
         if (e.code === 'auth/user-not-found') {
           // User doesn't exist, create them
-          const createParams: any = {
+          const createParams = {
             displayName: finalDisplayName,
             email,
             password: password || 'password123'
@@ -56,20 +77,9 @@ async function startServer() {
         }
       }
 
-      // Set custom claims if needed, or just return success
-      // We'll handle the Firestore profile creation on the client side 
-      // or we can do it here if we have the Firestore instance.
-      
       res.json({ uid: userRecord.uid, success: true });
-    } catch (error: any) {
-      console.error('Error creating user:', error);
-      let errorMessage = error.message;
-      if (errorMessage.includes('identitytoolkit.googleapis.com')) {
-        const projectMatch = errorMessage.match(/project=([a-zA-Z0-9-]+)/);
-        const projectId = projectMatch ? projectMatch[1] : (firebaseConfig.projectId || '');
-        errorMessage = 'Firebase Authentication (Identity Toolkit API) is not enabled in your Google Cloud project. Please enable it here: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=' + projectId;
-      }
-      res.status(500).json({ error: errorMessage });
+    } catch (error) {
+      handleAuthError(error, res);
     }
   });
 
@@ -78,22 +88,15 @@ async function startServer() {
     try {
       await admin.auth().updateUser(uid, { password: newPassword });
       res.json({ success: true });
-    } catch (error: any) {
-      console.error('Error updating password:', error);
-      let errorMessage = error.message;
-      if (errorMessage.includes('identitytoolkit.googleapis.com')) {
-        const projectMatch = errorMessage.match(/project=([a-zA-Z0-9-]+)/);
-        const projectId = projectMatch ? projectMatch[1] : (firebaseConfig.projectId || '');
-        errorMessage = 'Firebase Authentication (Identity Toolkit API) is not enabled in your Google Cloud project. Please enable it here: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=' + projectId;
-      }
-      res.status(500).json({ error: errorMessage });
+    } catch (error) {
+      handleAuthError(error, res);
     }
   });
 
   app.post('/api/admin/update-user-profile', async (req, res) => {
     const { uid, displayName, photoURL } = req.body;
     try {
-      const updateParams: any = { displayName };
+      const updateParams = { displayName };
       // Firebase Auth photoURL has a limit of ~2048 characters
       const isBase64 = photoURL && photoURL.startsWith('data:');
       if (photoURL && (!isBase64 || photoURL.length < 2000)) {
@@ -102,15 +105,8 @@ async function startServer() {
       
       await admin.auth().updateUser(uid, updateParams);
       res.json({ success: true });
-    } catch (error: any) {
-      console.error('Error updating profile:', error);
-      let errorMessage = error.message;
-      if (errorMessage.includes('identitytoolkit.googleapis.com')) {
-        const projectMatch = errorMessage.match(/project=([a-zA-Z0-9-]+)/);
-        const projectId = projectMatch ? projectMatch[1] : (firebaseConfig.projectId || '');
-        errorMessage = 'Firebase Authentication (Identity Toolkit API) is not enabled in your Google Cloud project. Please enable it here: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=' + projectId;
-      }
-      res.status(500).json({ error: errorMessage });
+    } catch (error) {
+      handleAuthError(error, res);
     }
   });
 
@@ -119,20 +115,14 @@ async function startServer() {
     try {
       await admin.auth().deleteUser(uid);
       res.json({ success: true });
-    } catch (error: any) {
-      console.error('Error deleting user:', error);
-      let errorMessage = error.message;
-      if (errorMessage.includes('identitytoolkit.googleapis.com')) {
-        const projectMatch = errorMessage.match(/project=([a-zA-Z0-9-]+)/);
-        const projectId = projectMatch ? projectMatch[1] : (firebaseConfig.projectId || '');
-        errorMessage = 'Firebase Authentication (Identity Toolkit API) is not enabled in your Google Cloud project. Please enable it here: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=' + projectId;
-      }
-      res.status(500).json({ error: errorMessage });
+    } catch (error) {
+      handleAuthError(error, res);
     }
   });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -141,7 +131,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

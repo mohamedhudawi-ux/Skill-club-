@@ -78,7 +78,22 @@ async function provision() {
       }
 
       successCount++;
-    } catch (error) {
+    } catch (error: any) {
+      let errorMessage = error.message;
+      const isIdentityToolkitError = 
+        errorMessage.includes('identitytoolkit.googleapis.com') || 
+        errorMessage.includes('Identity Toolkit API') ||
+        (error.errorInfo && JSON.stringify(error.errorInfo).includes('identitytoolkit.googleapis.com'));
+
+      if (isIdentityToolkitError) {
+        const projectId = firebaseConfig.projectId || '531260372208';
+        console.error(`\nCRITICAL ERROR: Firebase Authentication (Identity Toolkit API) is not enabled in your Google Cloud project.`);
+        console.error(`1. Please enable it here: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=${projectId}`);
+        console.error(`2. Also, go to the Firebase Console and click "Get Started" in the Authentication section: https://console.firebase.google.com/project/${projectId}/authentication`);
+        console.error(`3. After enabling, wait 2-3 minutes for propagation and try again.\n`);
+        process.exit(1);
+      }
+      
       console.error(`Failed to provision ${admNo}:`, error);
       errorCount++;
     }

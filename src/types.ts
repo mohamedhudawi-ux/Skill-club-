@@ -17,6 +17,7 @@ export interface UserProfile {
 
 export interface Student {
   id?: string;
+  uid?: string;
   admissionNumber: string;
   name: string;
   dob: string;
@@ -87,6 +88,7 @@ export const BADGES: Badge[] = [
   { id: 'star', name: 'Star', club: 'Gold', minPoints: 500, description: 'Earned by achieving 500 reward points. Entry to Gold Club.' },
   { id: 'master', name: 'Master', club: 'Emerald', minPoints: 700, description: 'Earned by achieving 700 reward points. Entry to Emerald Club.' },
   { id: 'legendary', name: 'Legendary', club: 'Diamond', minPoints: 1000, description: 'Earned by achieving 1000 reward points. Entry to Diamond Club.' },
+  { id: 'topper', name: 'Topper', club: 'Platinum', minPoints: 1500, description: 'Earned by achieving 1500 reward points. Entry to Platinum Club.' },
 ];
 
 export const SKILL_CLUB_CATEGORIES: SkillClubCategory[] = [
@@ -248,7 +250,7 @@ export interface OfficeBearer {
 
 export interface SiteContent {
   id: string;
-  key: 'about_college' | 'about_union' | 'college_logo' | 'safa_logo' | 'skillclub_logo' | 'about_safa' | 'about_dhpc' | 'about_skillclub' | 'skill_club_rules' | 'whatsapp_link' | 'social_facebook' | 'social_instagram' | 'social_telegram' | 'social_phone' | 'social_gmail' | 'social_whatsapp';
+  key: 'about_college' | 'about_union' | 'college_logo' | 'safa_logo' | 'skillclub_logo' | 'about_safa' | 'about_dhpc' | 'about_skillclub' | 'skill_club_rules' | 'whatsapp_link' | 'social_facebook' | 'social_instagram' | 'social_telegram' | 'social_phone' | 'social_gmail' | 'social_whatsapp' | 'payment_qr_code' | 'payment_number' | 'hijri_offset' | 'college_photo';
   value: string;
 }
 
@@ -287,7 +289,19 @@ export interface GraceMarkApplication {
   timestamp: any;
 }
 
+export interface Resource {
+  id?: string;
+  title: string;
+  description: string;
+  fileUrl: string;
+  category: 'Study Material' | 'Club Guideline' | 'Union Document' | 'Other';
+  uploadedBy: string;
+  timestamp: any;
+}
+
 export const SAFA_UNION_CLUBS = [
   'Arabic Club', 'English Club', 'Urdu Club', 'Telugu Club', 
   'Science & Maths Club', 'Arts Club', 'IT Club', 'SAB'
 ];
+
+export const CLASS_LIST = ['SS2', 'SS1', 'S5', 'S4', 'S3', 'S2', 'S1A', 'S1B'];

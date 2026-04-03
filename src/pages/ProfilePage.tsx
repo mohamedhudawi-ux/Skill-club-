@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { updateProfile } from 'firebase/auth';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { ImageUpload } from '../components/ImageUpload';
-import { User, Mail, Shield, Camera, CheckCircle2, AlertCircle, Settings, Phone, MapPin, Calendar, Users, BookOpen, Hash } from 'lucide-react';
-import { CLASS_LIST } from '../constants';
+import { User, Mail, Shield, Camera, CheckCircle2, AlertCircle, Settings, Phone, MapPin, Calendar, Users, BookOpen, Hash, Award, FileText, ExternalLink } from 'lucide-react';
+import { CLASS_LIST, BADGES, WorkSubmission } from '../types';
+import { Badge } from '../components/Badge';
+import { safeToDate } from '../utils/date';
+import { Link } from 'react-router-dom';
 
 
 export default function ProfilePage() {
@@ -22,6 +25,9 @@ export default function ProfilePage() {
   const [address, setAddress] = useState(profile?.address || '');
   const [phone, setPhone] = useState(profile?.phone || '');
   const [admissionNumber, setAdmissionNumber] = useState(profile?.admissionNumber || '');
+  
+  // Portfolio data
+  const [submissions, setSubmissions] = useState<WorkSubmission[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
@@ -42,6 +48,15 @@ export default function ProfilePage() {
             if (data.name) setDisplayName(data.name);
             if (data.photoURL) setPhotoURL(data.photoURL);
           }
+
+          // Fetch submissions
+          const qSubmissions = query(
+            collection(db, 'workSubmissions'),
+            where('studentUid', '==', profile.uid),
+            orderBy('timestamp', 'desc')
+          );
+          const subSnap = await getDocs(qSubmissions);
+          setSubmissions(subSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
         } catch (error) {
           console.error("Error fetching student data:", error);
         }
@@ -130,6 +145,14 @@ export default function ProfilePage() {
           <h1 className="text-4xl font-black text-stone-900 tracking-tight">My Profile</h1>
           <p className="text-stone-500 font-medium">Manage your personal information and account settings.</p>
         </div>
+        {profile?.role === 'student' && profile?.admissionNumber && (
+          <Link 
+            to={`/portfolio/${profile.admissionNumber}`}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-stone-900 text-white rounded-2xl font-black text-sm hover:bg-emerald-600 transition-all shadow-lg shadow-stone-900/10"
+          >
+            View Public Portfolio <ExternalLink size={16} />
+          </Link>
+        )}
       </div>
 
       {status && (
@@ -332,6 +355,61 @@ export default function ProfilePage() {
             </div>
           </form>
         </Card>
+
+        {/* Portfolio Section */}
+        {profile?.role === 'student' && (
+          <div className="lg:col-span-3 space-y-8">
+            <h2 className="text-2xl font-black text-stone-900">Student Portfolio</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="p-6 bg-emerald-900 text-white">
+                <p className="text-emerald-200 font-black uppercase tracking-widest text-xs mb-2">Total Points</p>
+                <p className="text-4xl font-black">{profile?.totalPoints || 0}</p>
+              </Card>
+              <Card className="p-6">
+                <p className="text-stone-500 font-black uppercase tracking-widest text-xs mb-4">Badges Earned</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {BADGES.map(b => (
+                    <Badge 
+                      key={b.id} 
+                      badge={b} 
+                      earned={(profile?.badges || []).includes(b.id)} 
+                      size="sm"
+                    />
+                  ))}
+                </div>
+              </Card>
+              <Card className="p-6">
+                <p className="text-stone-500 font-black uppercase tracking-widest text-xs mb-2">Total Submissions</p>
+                <p className="text-4xl font-black text-stone-900">{submissions.length}</p>
+              </Card>
+            </div>
+
+            <Card className="p-8">
+              <h3 className="text-lg font-black text-stone-900 mb-6 flex items-center gap-2">
+                <FileText className="text-emerald-600" /> Recent Submissions
+              </h3>
+              <div className="space-y-4">
+                {submissions.map(sub => (
+                  <div key={sub.id} className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                    <div>
+                      <p className="font-bold text-stone-900">{sub.title}</p>
+                      <p className="text-xs text-stone-500">{sub.category} • {safeToDate(sub.timestamp)?.toLocaleDateString()}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                      sub.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                      sub.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      {sub.status}
+                    </span>
+                  </div>
+                ))}
+                {submissions.length === 0 && <p className="text-center text-stone-400 italic py-4">No submissions yet.</p>}
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );

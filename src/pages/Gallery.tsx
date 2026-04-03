@@ -54,21 +54,15 @@ export default function Gallery() {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this photo?')) {
-      try {
-        await deleteDoc(doc(db, 'gallery', id));
-        setItems(items.filter(item => item.id !== id));
-      } catch (error) {
-        console.error('Delete failed:', error);
-      }
+    try {
+      await deleteDoc(doc(db, 'gallery', id));
+      setItems(items.filter(item => item.id !== id));
+    } catch (error) {
+      console.error('Delete failed:', error);
     }
   };
 
   const canUpload = isStaff || isSafa || isAdmin;
-
-  useEffect(() => {
-    console.log("Gallery Auth Debug:", { isStaff, isSafa, isAdmin, profile });
-  }, [isStaff, isSafa, isAdmin, profile]);
 
   return (
     <div className="space-y-8">

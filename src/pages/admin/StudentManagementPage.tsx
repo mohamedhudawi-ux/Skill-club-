@@ -6,7 +6,7 @@ import firebaseConfig from '../../../firebase-applet-config.json';
 import { db } from '../../firebase';
 import { Student } from '../../types';
 import { CLASS_LIST } from '../../constants';
-import { Trash2, Edit2, X, Plus, Upload, Download, Users, Key, Search } from 'lucide-react';
+import { Trash2, Edit2, X, Plus, Upload, Download, Users, Key, Search, ExternalLink } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -187,16 +187,59 @@ export default function StudentManagementPage() {
         
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-        let text = '';
+        let fullText = '';
+        const students: any[] = [];
+
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
-          text += content.items.map((item: any) => item.str).join(' ');
+          const pageText = content.items.map((item: any) => item.str).join(' ');
+          fullText += pageText + '\n';
+          
+          // Basic heuristic for parsing rows from text
+          // This assumes a common format where admission number and name are on the same line or close
+          const lines = pageText.split(/\s{2,}/); // Split by multiple spaces which often separate columns
+          
+          // Attempt to find patterns like: [Admission Number] [Name] [Class]
+          // This is a generic approach and might need refinement for specific PDF layouts
+          const admissionPattern = /^\d{4,6}$/; // Typical admission number format
+          
+          for (let j = 0; j < lines.length; j++) {
+            const part = lines[j].trim();
+            if (admissionPattern.test(part)) {
+              // Found something that looks like an admission number
+              const admissionNumber = part;
+              const name = lines[j+1]?.trim() || '';
+              const studentClass = lines[j+2]?.trim() || '';
+              
+              if (name && name.length > 2) {
+                students.push({
+                  id: admissionNumber,
+                  name: name.toUpperCase(),
+                  admissionNumber: admissionNumber,
+                  class: studentClass,
+                  fatherName: '',
+                  dob: '',
+                  address: '',
+                  phone: '',
+                  email: '',
+                  totalPoints: 0,
+                  categoryPoints: {},
+                  badges: [],
+                  createdAt: new Date().toISOString()
+                });
+              }
+            }
+          }
         }
         
-        // TODO: Implement robust PDF parsing logic based on the specific PDF structure
-        console.log('PDF Text:', text);
-        setStatus({ type: 'error', msg: 'PDF parsing needs to be configured for your specific PDF format.' });
+        if (students.length > 0) {
+          setPendingStudents(students);
+          setStatus({ type: 'success', msg: `Successfully parsed ${students.length} students from PDF.` });
+        } else {
+          console.log('PDF Text:', fullText);
+          setStatus({ type: 'error', msg: 'Could not find student data in the PDF. Please ensure it follows a standard list format.' });
+        }
         setLoading(false);
       }
     } catch (err: any) {
@@ -570,7 +613,15 @@ export default function StudentManagementPage() {
       setStatus({ type: 'success', msg: `Provisioning complete! Success: ${successCount}, Errors: ${errorCount}` });
     } catch (err: any) {
       console.error('Provisioning error:', err);
-      setStatus({ type: 'error', msg: 'Provisioning failed: ' + err.message });
+      let errorMsg = err.message;
+      if (errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('Identity Toolkit API')) {
+        errorMsg = `Firebase Authentication (Identity Toolkit API) is not enabled. 
+        
+1. Enable it: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=531260372208
+2. Click "Get Started" in Firebase Auth: https://console.firebase.google.com/project/gen-lang-client-0615445747/authentication
+3. Wait 3-5 minutes.`;
+      }
+      setStatus({ type: 'error', msg: 'Provisioning failed: ' + errorMsg });
     } finally {
       setLoading(false);
     }
@@ -659,6 +710,14 @@ export default function StudentManagementPage() {
                 </td>
                 <td className="px-6 py-4 text-sm text-stone-500 font-bold">{student.class || 'N/A'}</td>
                 <td className="px-6 py-4 text-right flex justify-end gap-2">
+                  <Button 
+                    variant="secondary" 
+                    className="p-2"
+                    title="View Portfolio"
+                    onClick={() => window.open(`/portfolio/${student.admissionNumber}`, '_blank')}
+                  >
+                    <ExternalLink size={16} className="text-emerald-600" />
+                  </Button>
                   <Button 
                     variant="secondary" 
                     className="p-2"
@@ -916,11 +975,16 @@ export default function StudentManagementPage() {
                         updated[index].admissionNumber = e.target.value;
                         setPendingStudents(updated);
                       }} className="w-full px-2 py-1 rounded border border-stone-200" /></td>
-                      <td className="px-4 py-2"><input value={student.class} onChange={e => {
-                        const updated = [...pendingStudents];
-                        updated[index].class = e.target.value;
-                        setPendingStudents(updated);
-                      }} className="w-full px-2 py-1 rounded border border-stone-200" /></td>
+                      <td className="px-4 py-2">
+                        <select value={student.class} onChange={e => {
+                          const updated = [...pendingStudents];
+                          updated[index].class = e.target.value;
+                          setPendingStudents(updated);
+                        }} className="w-full px-2 py-1 rounded border border-stone-200 bg-white">
+                          <option value="">Select Class</option>
+                          {CLASS_LIST.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                        </select>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -3,11 +3,12 @@ import { Card } from './Card';
 import { Users, Calendar, FileText, Award, TrendingUp, ChevronRight, CheckCircle, XCircle, Clock, Search, AlertCircle } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useSettings } from '../SettingsContext';
-import { collection, getDocs, query, orderBy, limit, where, getCountFromServer } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, getDocs, query, orderBy, limit, where, getCountFromServer, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Student, WorkSubmission } from '../types';
 import { Button } from './Button';
 import { CLASS_LIST } from '../constants';
+import { BrandingHeader } from './BrandingHeader';
 
 export function StaffDashboard() {
   const { profile } = useAuth();
@@ -23,48 +24,40 @@ export function StaffDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+    setLoading(true);
+    setError(null);
+    const unsubscribers: (() => void)[] = [];
 
-        // Fetch Top Students
-        const qTop = query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(3));
-        const topSnap = await getDocs(qTop);
-        setTopStudents(topSnap.docs.map(doc => doc.data() as Student));
+    const setupListeners = () => {
+      // Top Students
+      unsubscribers.push(onSnapshot(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(3)), (snap) => {
+        setTopStudents(snap.docs.map(doc => doc.data() as Student));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
 
-        // Fetch Class Counts using getCountFromServer for efficiency
+      // Class Counts
+      unsubscribers.push(onSnapshot(collection(db, 'students'), (snap) => {
         const counts: Record<string, number> = {};
-        await Promise.all(CLASS_LIST.map(async (className) => {
-          const q = query(collection(db, 'students'), where('class', '==', className));
-          const snap = await getCountFromServer(q);
-          counts[className] = snap.data().count;
-        }));
+        CLASS_LIST.forEach(className => {
+          counts[className] = snap.docs.filter(doc => doc.data().class === className).length;
+        });
         setClassCounts(counts);
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
 
-        // Fetch Recent Pending Submissions
-        const qSubmissions = query(
-          collection(db, 'workSubmissions'),
-          where('status', '==', 'pending'),
-          orderBy('timestamp', 'desc'),
-          limit(5)
-        );
-        const submissionsSnap = await getDocs(qSubmissions);
-        setRecentSubmissions(submissionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
+      // Recent Submissions
+      unsubscribers.push(onSnapshot(query(
+        collection(db, 'workSubmissions'),
+        where('status', '==', 'pending'),
+        orderBy('timestamp', 'desc'),
+        limit(5)
+      ), (snap) => {
+        setRecentSubmissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'workSubmissions')));
 
-      } catch (err: any) {
-        console.error('Staff Dashboard Fetch Error:', err);
-        if (err?.message?.includes('Quota exceeded')) {
-          setError('Firestore daily free quota exceeded. Some data may not load.');
-        } else {
-          setError('Failed to load dashboard data.');
-        }
-      } finally {
-        setLoading(false);
-      }
+      setLoading(false);
     };
 
-    fetchData();
+    setupListeners();
+    return () => unsubscribers.forEach(unsub => unsub());
   }, []);
 
   const handleClassClick = async (className: string) => {
@@ -99,8 +92,12 @@ export function StaffDashboard() {
     );
   }
 
+  const collegeLogo = content.find(c => c.key === 'college_logo')?.value;
+
   return (
     <div className="space-y-10">
+      <BrandingHeader />
+
       {error && (
         <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3 text-rose-700 animate-in fade-in slide-in-from-top-4 duration-300">
           <AlertCircle size={20} />
@@ -116,7 +113,8 @@ export function StaffDashboard() {
         />
         <div className="text-center md:text-left">
           <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-2">
-            Welcome, <span className="text-blue-400">{profile?.displayName || 'Staff Member'}</span>!
+            Welcome,<br />
+            <span className="text-blue-400">{profile?.displayName || 'Staff Member'}</span>!
           </h2>
           <p className="text-stone-400 font-medium">Here's what's happening in your classes today.</p>
         </div>
@@ -337,13 +335,20 @@ export function StaffDashboard() {
               const logo = content.find(c => c.key === section.logoKey);
               return (
                 <Card key={section.key} className="p-4 hover:bg-stone-50 transition-colors cursor-pointer group">
-                  <div className="flex items-center gap-3">
-                    <img src={logo?.value || `https://ui-avatars.com/api/?name=${section.label}`} alt="" className="w-8 h-8 object-contain" />
-                    <div className="flex-1 min-w-0">
-                      <h5 className="text-sm font-bold text-stone-900 truncate">{section.label}</h5>
-                      <p className="text-[10px] text-stone-500">{item?.value || 'No content available.'}</p>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      <img src={logo?.value || `https://ui-avatars.com/api/?name=${section.label}`} alt="" className="w-8 h-8 object-contain" />
+                      <div className="flex-1 min-w-0">
+                        <h5 className="text-sm font-bold text-stone-900 truncate">{section.label}</h5>
+                      </div>
+                      <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-900 transition-colors" />
                     </div>
-                    <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-900 transition-colors" />
+                    {section.key === 'about_college' && (
+                      <div className="flex-1 min-w-0">
+                        {/* Photo removed as per request */}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-stone-500 line-clamp-2">{item?.value || 'No content available.'}</p>
                   </div>
                 </Card>
               );

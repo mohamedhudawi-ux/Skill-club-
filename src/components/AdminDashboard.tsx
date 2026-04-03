@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, getDocs, onSnapshot, orderBy, limit, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, where, getDoc, getCountFromServer } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Student, SkillClubEntry, Query, UserProfile, SKILL_CLUB_CATEGORIES, WorkSubmission, GraceMarkApplication, BADGES, SiteContent } from '../types';
 import { 
   Users, Award, TrendingUp, MessageSquare, 
@@ -19,6 +19,7 @@ import { Button } from './Button';
 
 import { AdminSubmissions } from './AdminSubmissions';
 import { AdminGraceMarks } from './AdminGraceMarks';
+import { BrandingHeader } from './BrandingHeader';
 
 export function AdminDashboard() {
   const navigate = useNavigate();
@@ -49,46 +50,55 @@ export function AdminDashboard() {
 
   useEffect(() => {
     if (authLoading || settingsLoading) return;
-    const fetchData = async () => {
-      try {
-        setError(null);
-        const [studentsCountSnap, topStudentsSnap, activitiesCountSnap, queriesCountSnap, submissionsSnap, graceMarksCountSnap, clubsCountSnap, queriesSnap] = await Promise.all([
-          getCountFromServer(collection(db, 'students')),
-          getDocs(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(5))),
-          getCountFromServer(collection(db, 'skillClubEntries')),
-          getCountFromServer(query(collection(db, 'queries'), where('status', '==', 'pending'))),
-          getDocs(query(collection(db, 'workSubmissions'), where('status', '==', 'pending'), limit(5))),
-          getCountFromServer(query(collection(db, 'graceMarkApplications'), where('status', '==', 'pending'))),
-          getCountFromServer(collection(db, 'clubs')),
-          getDocs(query(collection(db, 'queries'), orderBy('timestamp', 'desc'), limit(5)))
-        ]);
+    
+    const unsubscribers: (() => void)[] = [];
 
-        setStats(prev => ({
-          ...prev,
-          totalStudents: studentsCountSnap.data().count,
-          totalActivities: activitiesCountSnap.data().count,
-          pendingQueries: queriesCountSnap.data().count,
-          pendingSubmissions: submissionsSnap.size,
-          pendingGraceMarks: graceMarksCountSnap.data().count,
-          totalClubs: clubsCountSnap.data().count,
-          topStudents: topStudentsSnap.docs.map(doc => doc.data() as Student)
-        }));
+    const setupListeners = () => {
+      setLoading(true);
+      setError(null);
 
-        setSubmissions(submissionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
-        setQueries(queriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Query)));
-        setLoading(false);
-      } catch (error: any) {
-        console.error('Error fetching admin stats:', error);
-        if (error?.message?.includes('Quota exceeded')) {
-          setError('Firestore daily free quota exceeded. Some stats may not load until tomorrow.');
-        } else {
-          setError('Failed to load dashboard stats. Please try again later.');
-        }
-        setLoading(false);
-      }
+      // Students Count
+      unsubscribers.push(onSnapshot(collection(db, 'students'), (snap) => {
+        setStats(prev => ({ ...prev, totalStudents: snap.size }));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
+
+      // Top Students
+      unsubscribers.push(onSnapshot(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(5)), (snap) => {
+        setStats(prev => ({ ...prev, topStudents: snap.docs.map(doc => doc.data() as Student) }));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
+
+      // Activities Count
+      unsubscribers.push(onSnapshot(collection(db, 'skillClubEntries'), (snap) => {
+        setStats(prev => ({ ...prev, totalActivities: snap.size }));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'skillClubEntries')));
+
+      // Pending Queries
+      unsubscribers.push(onSnapshot(query(collection(db, 'queries'), where('status', '==', 'pending')), (snap) => {
+        setStats(prev => ({ ...prev, pendingQueries: snap.size }));
+        setQueries(snap.docs.slice(0, 5).map(doc => ({ id: doc.id, ...doc.data() } as Query)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'queries')));
+
+      // Pending Submissions
+      unsubscribers.push(onSnapshot(query(collection(db, 'workSubmissions'), where('status', '==', 'pending')), (snap) => {
+        setStats(prev => ({ ...prev, pendingSubmissions: snap.size }));
+        setSubmissions(snap.docs.slice(0, 5).map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'workSubmissions')));
+
+      // Pending Grace Marks
+      unsubscribers.push(onSnapshot(query(collection(db, 'graceMarkApplications'), where('status', '==', 'pending')), (snap) => {
+        setStats(prev => ({ ...prev, pendingGraceMarks: snap.size }));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'graceMarkApplications')));
+
+      // Clubs Count
+      unsubscribers.push(onSnapshot(collection(db, 'clubs'), (snap) => {
+        setStats(prev => ({ ...prev, totalClubs: snap.size }));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubs')));
+
+      setLoading(false);
     };
 
-    fetchData();
+    setupListeners();
+    return () => unsubscribers.forEach(unsub => unsub());
   }, [authLoading, settingsLoading]);
 
   const handleReply = async (queryId: string, reply: string) => {
@@ -111,6 +121,8 @@ export function AdminDashboard() {
     { label: 'Work Submissions', icon: FileText, color: 'bg-rose-500', tab: 'submissions' }
   ];
 
+  const collegeLogo = siteContent.find(c => c.key === 'college_logo')?.value;
+
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-20 space-y-4">
       <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
@@ -120,6 +132,8 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-10">
+      <BrandingHeader />
+
       {/* Welcome Header */}
       {error && (
         <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3 text-rose-700 animate-in fade-in slide-in-from-top-4 duration-300">
@@ -164,6 +178,7 @@ export function AdminDashboard() {
                 <img src={logo?.value || 'https://ui-avatars.com/api/?name=' + section.label} alt={section.label} className="w-10 h-10 object-contain" />
                 <h4 className="font-bold text-stone-900">{section.label}</h4>
               </div>
+
               <p className="text-sm text-stone-600 line-clamp-3">{item?.value || 'No content available.'}</p>
             </Card>
             );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy, writeBatch, doc, getDocs, where, limit, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Club, Student, ClubPointEntry, SkillClubEntry, SKILL_CLUB_CATEGORIES } from '../types';
 import { BarChart3, Trophy, Medal, Award, Trash2, Users, BookOpen, Download, BarChart as BarChartIcon } from 'lucide-react';
 import { Card } from '../components/Card';
@@ -24,33 +24,40 @@ export default function Scoreboard() {
   const clubChartRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
-        const startTimestamp = Timestamp.fromDate(startOfMonth);
+    setLoading(true);
+    const unsubscribers: (() => void)[] = [];
 
-        const [clubsSnap, studentsSnap, clubEntriesSnap, skillEntriesSnap] = await Promise.all([
-          getDocs(query(collection(db, 'clubs'), limit(50))),
-          getDocs(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(50))),
-          getDocs(query(collection(db, 'clubPointEntries'), where('timestamp', '>=', startTimestamp), limit(100))),
-          getDocs(query(collection(db, 'skillClubEntries'), where('timestamp', '>=', startTimestamp), limit(100)))
-        ]);
+    const setupListeners = () => {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const startTimestamp = Timestamp.fromDate(startOfMonth);
 
-        setClubs(clubsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
-        setRankings(studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
-        setClubPointEntries(clubEntriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubPointEntry)));
-        setSkillClubEntries(skillEntriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
-      } catch (error) {
-        console.error('Error fetching scoreboard data:', error);
-      } finally {
-        setLoading(false);
-      }
+      // Clubs
+      unsubscribers.push(onSnapshot(query(collection(db, 'clubs'), limit(50)), (snap) => {
+        setClubs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubs')));
+
+      // Student Rankings
+      unsubscribers.push(onSnapshot(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(50)), (snap) => {
+        setRankings(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
+
+      // Club Point Entries (Current Month)
+      unsubscribers.push(onSnapshot(query(collection(db, 'clubPointEntries'), where('timestamp', '>=', startTimestamp), limit(100)), (snap) => {
+        setClubPointEntries(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubPointEntry)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubPointEntries')));
+
+      // Skill Club Entries (Current Month)
+      unsubscribers.push(onSnapshot(query(collection(db, 'skillClubEntries'), where('timestamp', '>=', startTimestamp), limit(100)), (snap) => {
+        setSkillClubEntries(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'skillClubEntries')));
+
+      setLoading(false);
     };
 
-    fetchData();
+    setupListeners();
+    return () => unsubscribers.forEach(unsub => unsub());
   }, []);
 
   const handleClearPoints = async () => {
