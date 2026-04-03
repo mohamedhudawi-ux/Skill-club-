@@ -250,7 +250,7 @@ export default function SettingsPage() {
             setConfirmDelete(null);
           }
         }}
-        onCancel={() => setConfirmDelete(null)}
+        onClose={() => setConfirmDelete(null)}
       />
     </div>
   );

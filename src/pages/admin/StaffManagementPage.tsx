@@ -3,7 +3,7 @@ import { collection, getDocs, query, where, doc, deleteDoc, setDoc } from 'fireb
 import { db } from '../../firebase';
 import { UserProfile, UserRole } from '../../types';
 import { CLASS_LIST } from '../../constants';
-import { Trash2, Edit2, Plus, Lock, X } from 'lucide-react';
+import { Trash2, Edit2, Plus, Lock, X, Key } from 'lucide-react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/ConfirmModal';
@@ -14,6 +14,9 @@ export default function StaffManagementPage() {
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [newStaffData, setNewStaffData] = useState({ name: '', email: '', photoURL: '', phone: '' });
   const [editingStaff, setEditingStaff] = useState<UserProfile | null>(null);
+  const [credentialStaff, setCredentialStaff] = useState<UserProfile | null>(null);
+  const [newCredEmail, setNewCredEmail] = useState('');
+  const [newCredPassword, setNewCredPassword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
@@ -121,6 +124,42 @@ export default function StaffManagementPage() {
     }
   };
 
+  const handleUpdateCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!credentialStaff) return;
+    setStatus(null);
+    try {
+      const response = await fetch('/api/admin/update-user-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: credentialStaff.uid,
+          email: newCredEmail || undefined,
+          password: newCredPassword || undefined,
+          displayName: credentialStaff.displayName
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Update email in users collection too
+        if (newCredEmail) {
+          await setDoc(doc(db, 'users', credentialStaff.uid), { email: newCredEmail }, { merge: true });
+          // Update local state
+          setStaff(prev => prev.map(s => s.uid === credentialStaff.uid ? { ...s, email: newCredEmail } : s));
+        }
+        setStatus({ type: 'success', msg: `Credentials updated for ${credentialStaff.displayName}` });
+        setCredentialStaff(null);
+        setNewCredEmail('');
+        setNewCredPassword('');
+      } else {
+        throw new Error(data.error || 'Failed to update credentials');
+      }
+    } catch (err: any) {
+      setStatus({ type: 'error', msg: err.message || 'Failed to update credentials.' });
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
@@ -204,6 +243,18 @@ export default function StaffManagementPage() {
                   <Button 
                     variant="secondary" 
                     className="p-2"
+                    title="Manage Credentials"
+                    onClick={() => {
+                      setCredentialStaff(member);
+                      setNewCredEmail(member.email || '');
+                      setNewCredPassword('');
+                    }}
+                  >
+                    <Key size={16} className="text-blue-600" />
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    className="p-2"
                     onClick={() => setEditingStaff(member)}
                   >
                     <Edit2 size={16} />
@@ -217,6 +268,53 @@ export default function StaffManagementPage() {
           </tbody>
         </table>
       </Card>
+
+      {credentialStaff && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="p-8 max-w-md w-full shadow-2xl relative">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-stone-900">Manage Credentials</h3>
+              <Button variant="ghost" onClick={() => setCredentialStaff(null)} className="p-2 hover:bg-stone-100 rounded-full">
+                <X size={24} />
+              </Button>
+            </div>
+            <form onSubmit={handleUpdateCredentials} className="space-y-4">
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 mb-4">
+                <p className="text-xs text-blue-700 font-medium">
+                  <strong>Note:</strong> Passwords are encrypted and cannot be viewed. You can only set a new password.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Staff Name</label>
+                <input value={credentialStaff.displayName} disabled className="w-full px-4 py-2 rounded-xl border border-stone-200 bg-stone-50 text-stone-500 outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Email Address</label>
+                <input 
+                  type="email"
+                  value={newCredEmail}
+                  onChange={e => setNewCredEmail(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
+                  placeholder="Enter new email"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">New Password</label>
+                <input 
+                  type="text"
+                  value={newCredPassword}
+                  onChange={e => setNewCredPassword(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
+                  placeholder="Enter new password"
+                />
+              </div>
+              <Button type="submit" disabled={isUpdating} className="w-full">
+                {isUpdating ? 'Updating...' : 'Update Credentials'}
+              </Button>
+            </form>
+          </Card>
+        </div>
+      )}
 
       {editingStaff && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">

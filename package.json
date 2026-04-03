@@ -47,6 +47,8 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/file-saver": "^2.0.7",
+    "@types/moment-hijri": "^2.1.4",
     "@types/node": "^25.5.0",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.14",

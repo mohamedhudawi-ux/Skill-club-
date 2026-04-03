@@ -212,6 +212,22 @@ export default function Dashboard() {
     <div className="space-y-8">
       <BrandingHeader />
 
+      {/* Student Info Header */}
+      {isStudent && student && (
+        <Card className="p-6 flex items-center gap-6">
+          <img 
+            src={student.photoURL || `https://ui-avatars.com/api/?name=${student.name}&background=random`} 
+            alt={student.name} 
+            className="w-20 h-20 rounded-2xl object-cover shadow-md"
+            referrerPolicy="no-referrer"
+          />
+          <div>
+            <h2 className="text-2xl font-black text-stone-900">{student.name}</h2>
+            <p className="text-stone-500 font-bold uppercase tracking-widest text-xs">{student.admissionNumber}</p>
+          </div>
+        </Card>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-black text-stone-900">
@@ -723,7 +739,7 @@ export default function Dashboard() {
                   </span>
                   
                   <div className="w-full space-y-3 text-left bg-stone-50 p-4 rounded-2xl">
-                    {staff.email && (
+                    {staff.email && !isStudent && (
                       <div className="flex items-center gap-3 text-sm">
                         <Mail size={16} className="text-stone-400 shrink-0" />
                         <span className="text-stone-600 truncate font-medium">{staff.email}</span>

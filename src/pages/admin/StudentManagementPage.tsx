@@ -28,6 +28,9 @@ export default function StudentManagementPage() {
   const [pendingStudents, setPendingStudents] = useState<Student[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [credentialStudent, setCredentialStudent] = useState<Student | null>(null);
+  const [newCredEmail, setNewCredEmail] = useState('');
+  const [newCredPassword, setNewCredPassword] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -297,6 +300,50 @@ export default function StudentManagementPage() {
       setStatus({ type: 'error', msg: err.message || 'Failed to update student.' });
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleUpdateCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!credentialStudent) return;
+    setLoading(true);
+    try {
+      // Find user UID by admission number
+      const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', credentialStudent.admissionNumber));
+      const userDocs = await getDocs(usersQuery);
+      if (userDocs.empty) throw new Error('User account not found for this student.');
+      
+      const uid = userDocs.docs[0].id;
+      const response = await fetch('/api/admin/update-user-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid,
+          email: newCredEmail || undefined,
+          password: newCredPassword || undefined,
+          displayName: credentialStudent.name
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Update email in students collection too
+        if (newCredEmail) {
+          await updateDoc(doc(db, 'students', credentialStudent.id!), { email: newCredEmail });
+          // Update local state
+          setStudents(prev => prev.map(s => s.id === credentialStudent.id ? { ...s, email: newCredEmail } : s));
+        }
+        setStatus({ type: 'success', msg: `Credentials updated for ${credentialStudent.name}` });
+        setCredentialStudent(null);
+        setNewCredEmail('');
+        setNewCredPassword('');
+      } else {
+        throw new Error(data.error || 'Failed to update credentials');
+      }
+    } catch (err: any) {
+      setStatus({ type: 'error', msg: err.message || 'Failed to update credentials.' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -756,6 +803,18 @@ export default function StudentManagementPage() {
                   <Button 
                     variant="secondary" 
                     className="p-2"
+                    title="Manage Credentials"
+                    onClick={() => {
+                      setCredentialStudent(student);
+                      setNewCredEmail(student.email || '');
+                      setNewCredPassword('');
+                    }}
+                  >
+                    <Key size={16} className="text-blue-600" />
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    className="p-2"
                     onClick={() => setEditingStudent(student)}
                   >
                     <Edit2 size={16} />
@@ -853,6 +912,53 @@ export default function StudentManagementPage() {
                 </Button>
               </form>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {credentialStudent && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="p-8 max-w-md w-full shadow-2xl relative">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-stone-900">Manage Credentials</h3>
+              <Button variant="ghost" onClick={() => setCredentialStudent(null)} className="p-2 hover:bg-stone-100 rounded-full">
+                <X size={24} />
+              </Button>
+            </div>
+            <form onSubmit={handleUpdateCredentials} className="space-y-4">
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 mb-4">
+                <p className="text-xs text-blue-700 font-medium">
+                  <strong>Note:</strong> Passwords are encrypted and cannot be viewed. You can only set a new password.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Student Name</label>
+                <input value={credentialStudent.name} disabled className="w-full px-4 py-2 rounded-xl border border-stone-200 bg-stone-50 text-stone-500 outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Email Address</label>
+                <input 
+                  type="email"
+                  value={newCredEmail}
+                  onChange={e => setNewCredEmail(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
+                  placeholder="Enter new email"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">New Password</label>
+                <input 
+                  type="text"
+                  value={newCredPassword}
+                  onChange={e => setNewCredPassword(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
+                  placeholder="Enter new password"
+                />
+              </div>
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? 'Updating...' : 'Update Credentials'}
+              </Button>
+            </form>
           </Card>
         </div>
       )}
@@ -1046,7 +1152,7 @@ export default function StudentManagementPage() {
         title="Provision Accounts"
         message="Are you sure you want to provision accounts for the selected students? This will create Firebase Authentication accounts for them."
         confirmText="Provision Accounts"
-        variant="primary"
+        variant="info"
       />
 
       <ConfirmModal
@@ -1056,7 +1162,7 @@ export default function StudentManagementPage() {
         title="Fix Student Names"
         message="Are you sure you want to update the display names for the specified students to their original names?"
         confirmText="Update Names"
-        variant="primary"
+        variant="info"
       />
     </div>
   );

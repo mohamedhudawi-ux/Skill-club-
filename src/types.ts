@@ -10,6 +10,8 @@ export interface UserProfile {
   phone?: string;
   dob?: string;
   address?: string;
+  class?: string;
+  classTeacher?: string;
   totalPoints?: number;
   badges?: string[];
   createdAt?: string;
@@ -30,6 +32,7 @@ export interface Student {
   totalPoints: number;
   categoryPoints: Record<string, number>;
   badges: string[];
+  timestamp?: any;
 }
 
 export type SkillClubCategory = 
@@ -170,6 +173,7 @@ export interface Program {
   id?: string;
   title: string;
   date: string;
+  category?: string;
   description?: string;
   addedBy: string;
   timestamp: any;
@@ -189,6 +193,7 @@ export interface Club {
   description: string;
   logoUrl?: string;
   totalPoints?: number;
+  points?: number;
 }
 
 export interface ClubPointEntry {

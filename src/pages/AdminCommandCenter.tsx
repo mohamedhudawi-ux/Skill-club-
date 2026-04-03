@@ -98,7 +98,7 @@ export default function AdminCommandCenter() {
   const [newStudentPhoto, setNewStudentPhoto] = useState('');
 
   // Edit states
-  const [editingEntity, setEditingEntity] = useState<{ type: 'club' | 'board' | 'bearer' | 'user', id: string, data: any } | null>(null);
+  const [editingEntity, setEditingEntity] = useState<{ type: 'club' | 'board' | 'bearer' | 'user' | 'student', id: string, data: any } | null>(null);
   const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
@@ -1780,7 +1780,7 @@ export default function AdminCommandCenter() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-stone-400 uppercase mb-1">New Password (Leave blank to keep current)</label>
+                    <label className="block text-xs font-bold text-stone-400 uppercase mb-1">Reset Password (Enter new password to change)</label>
                     <input 
                       type="text"
                       value={newPassword}

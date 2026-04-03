@@ -61,7 +61,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       { name: 'My Profile', href: '/profile', icon: Users, group: 'Main' },
       { name: 'Safa Panel', href: '/safa', icon: Bell, group: 'Media' },
       { name: 'Treasurer Panel', href: '/safa?tab=treasurer', icon: Wallet, group: 'Finance' },
-      { name: 'Gallery', href: '/gallery', icon: ImageIcon, group: 'Media' },
       { name: 'Calendar', href: '/calendar', icon: CalendarIcon, group: 'Media' }
     ];
   } else {
@@ -78,7 +77,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
 
     navigation.push(
-      { name: 'Gallery', href: '/gallery', icon: ImageIcon, group: 'Media' },
       { name: 'Calendar', href: '/calendar', icon: CalendarIcon, group: 'Media' },
       { name: 'Resource Library', href: '/resources', icon: BookOpen, group: 'Media' },
     );
@@ -153,7 +151,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             <nav className="hidden md:flex items-center gap-8">
               <Link to="/" className={`text-sm font-bold transition-colors ${location.pathname === '/' ? 'text-emerald-600' : 'text-stone-600 hover:text-emerald-600'}`}>Home</Link>
-              <Link to="/gallery" className={`text-sm font-bold transition-colors ${location.pathname === '/gallery' ? 'text-emerald-600' : 'text-stone-600 hover:text-emerald-600'}`}>Gallery</Link>
               <Link to="/calendar" className={`text-sm font-bold transition-colors ${location.pathname === '/calendar' ? 'text-emerald-600' : 'text-stone-600 hover:text-emerald-600'}`}>Calendar</Link>
               {profile ? (
                 <Link to="/dashboard" className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all hover:scale-105">
@@ -184,7 +181,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <nav className="flex flex-col gap-6">
               <Link to="/" onClick={() => setIsSidebarOpen(false)} className="text-2xl font-black">Home</Link>
-              <Link to="/gallery" onClick={() => setIsSidebarOpen(false)} className="text-2xl font-black">Gallery</Link>
               <Link to="/calendar" onClick={() => setIsSidebarOpen(false)} className="text-2xl font-black">Calendar</Link>
               {profile ? (
                 <Link to="/dashboard" onClick={() => setIsSidebarOpen(false)} className="text-2xl font-black text-emerald-600">Dashboard</Link>
@@ -216,7 +212,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="space-y-4">
               <h5 className="font-black text-stone-900 uppercase tracking-widest text-xs">Quick Links</h5>
               <ul className="space-y-2 text-stone-500 font-medium">
-                <li><Link to="/gallery" className="hover:text-emerald-600 transition-colors">Gallery</Link></li>
                 <li><Link to="/calendar" className="hover:text-emerald-600 transition-colors">Calendar</Link></li>
                 <li><Link to="/login" className="hover:text-emerald-600 transition-colors">Login</Link></li>
                 <li><Link to="/dashboard" className="hover:text-emerald-600 transition-colors">Dashboard</Link></li>

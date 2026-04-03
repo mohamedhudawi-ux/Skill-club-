@@ -19,7 +19,8 @@ export default function ProfilePage() {
   const [photoURL, setPhotoURL] = useState(profile?.photoURL || '');
   
   // Student & Staff specific fields
-  const [studentClass, setStudentClass] = useState('');
+  const [studentClass, setStudentClass] = useState(profile?.class || '');
+  const [classTeacher, setClassTeacher] = useState(profile?.classTeacher || '');
   const [fatherName, setFatherName] = useState('');
   const [dob, setDob] = useState(profile?.dob || '');
   const [address, setAddress] = useState(profile?.address || '');
@@ -33,7 +34,7 @@ export default function ProfilePage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
   useEffect(() => {
-    const fetchStudentData = async () => {
+    const fetchProfileData = async () => {
       if (profile?.role === 'student' && profile?.admissionNumber) {
         try {
           const studentDoc = await getDoc(doc(db, 'students', profile.admissionNumber));
@@ -63,7 +64,7 @@ export default function ProfilePage() {
       }
     };
 
-    fetchStudentData();
+    fetchProfileData();
   }, [profile]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -74,6 +75,21 @@ export default function ProfilePage() {
     setStatus(null);
 
     try {
+      // Update Credentials if changed (Only for Admin)
+      if (profile?.role === 'admin' && (newEmail !== profile?.email || newPassword)) {
+        const credResponse = await fetch('/api/user/update-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid: user.uid,
+            password: newPassword || undefined,
+            displayName: displayName !== profile?.displayName ? displayName : undefined
+          })
+        });
+        const credData = await credResponse.json();
+        if (!credData.success) throw new Error(credData.error || 'Failed to update credentials');
+      }
+
       // Update Firebase Auth - only update photoURL if it's not a long base64 string
       // Firebase Auth photoURL has a limit of ~2048 characters
       const isBase64 = photoURL.startsWith('data:');
@@ -87,14 +103,19 @@ export default function ProfilePage() {
       // Update Firestore - Firestore has a 1MB limit, so base64 is fine here
       const userRef = doc(db, 'users', user.uid);
       try {
-        await updateDoc(userRef, {
+        const updateData: any = {
           displayName,
           photoURL,
           phone,
           dob,
           address,
           updatedAt: new Date().toISOString()
-        });
+        };
+        if (profile?.role === 'admin') updateData.email = newEmail;
+        if (profile?.role === 'student') updateData.class = studentClass;
+        if (profile?.role === 'staff') updateData.classTeacher = classTeacher;
+
+        await updateDoc(userRef, updateData);
       } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
       }
@@ -135,6 +156,42 @@ export default function ProfilePage() {
       setStatus({ type: 'error', msg: message });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const [newEmail, setNewEmail] = useState(profile?.email || '');
+  const [newPassword, setNewPassword] = useState('');
+  const [isUpdatingCredentials, setIsUpdatingCredentials] = useState(false);
+
+  const handleUpdateCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setIsUpdatingCredentials(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch('/api/user/update-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: user.uid,
+          password: newPassword || undefined,
+          displayName: displayName !== profile?.displayName ? displayName : undefined
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setStatus({ type: 'success', msg: 'Credentials updated successfully! Please log in again if you changed your email or password.' });
+        setNewPassword('');
+      } else {
+        throw new Error(data.error || 'Failed to update credentials');
+      }
+    } catch (error: any) {
+      console.error('Error updating credentials:', error);
+      setStatus({ type: 'error', msg: error.message || 'Failed to update credentials.' });
+    } finally {
+      setIsUpdatingCredentials(false);
     }
   };
 
@@ -229,63 +286,111 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Email Address</label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300" size={18} />
-                    <input
-                      type="email"
-                      value={profile?.email || ''}
-                      disabled
-                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 bg-stone-100 text-stone-400 font-bold cursor-not-allowed"
-                    />
-                  </div>
-                  <p className="text-[10px] text-stone-400 ml-1 font-medium italic">Email cannot be changed as it is linked to your Google account.</p>
-                </div>
-
-                {profile?.role === 'student' && (
+                {profile?.role === 'admin' && (
                   <>
                     <div className="space-y-2">
-                      <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Admission Number</label>
+                      <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Email Address</label>
                       <div className="relative">
-                        <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300" size={18} />
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
                         <input
-                          type="text"
-                          value={admissionNumber}
-                          disabled
-                          className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 bg-stone-100 text-stone-400 font-bold cursor-not-allowed"
+                          type="email"
+                          value={newEmail}
+                          onChange={(e) => setNewEmail(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 bg-stone-50/50 font-bold transition-all"
+                          placeholder="New Email Address"
                         />
                       </div>
+                      <p className="text-[10px] text-stone-400 ml-1 font-medium italic">Changing your email will affect your login credentials.</p>
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Class</label>
+                      <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">New Password</label>
                       <div className="relative">
-                        <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
-                        <select
-                          value={studentClass}
-                          onChange={(e) => setStudentClass(e.target.value)}
-                          className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 bg-stone-50/50 font-bold transition-all"
-                        >
-                          <option value="">Select Class</option>
-                          {CLASS_LIST.map(cls => <option key={cls} value={cls}>{cls}</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Father's Name</label>
-                      <div className="relative">
-                        <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                        <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
                         <input
-                          type="text"
-                          value={fatherName}
-                          onChange={(e) => setFatherName(e.target.value)}
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
                           className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 bg-stone-50/50 font-bold transition-all"
-                          placeholder="Father's Name"
+                          placeholder="Leave blank to keep current"
                         />
                       </div>
+                      <p className="text-[10px] text-stone-400 ml-1 font-medium italic">Enter a new password to update your account security.</p>
                     </div>
+                  </>
+                )}
+
+                {(profile?.role === 'student' || profile?.role === 'staff' || profile?.role === 'admin') && (
+                  <>
+                    {profile?.admissionNumber && (
+                      <div className="space-y-2">
+                        <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Admission Number</label>
+                        <div className="relative">
+                          <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300" size={18} />
+                          <input
+                            type="text"
+                            value={admissionNumber}
+                            disabled
+                            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 bg-stone-100 text-stone-400 font-bold cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {profile?.role === 'student' && (
+                      <div className="space-y-2">
+                        <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Class</label>
+                        <div className="relative">
+                          <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                          <select
+                            value={studentClass}
+                            onChange={(e) => setStudentClass(e.target.value)}
+                            disabled={profile?.role === 'student'}
+                            className={`w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 font-bold transition-all ${
+                              profile?.role === 'student' ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-stone-50/50 text-stone-900'
+                            }`}
+                          >
+                            <option value="">Select Class</option>
+                            {CLASS_LIST.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                          </select>
+                        </div>
+                        {profile?.role === 'student' && (
+                          <p className="text-[10px] text-stone-400 ml-1 font-medium italic">Class can only be updated by administrators or staff.</p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {profile?.role === 'staff' && (
+                      <div className="space-y-2">
+                        <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Class Teacher</label>
+                        <div className="relative">
+                          <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                          <input
+                            type="text"
+                            value={classTeacher}
+                            onChange={(e) => setClassTeacher(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 bg-stone-50/50 font-bold transition-all"
+                            placeholder="Enter Class Teacher"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {profile?.role === 'student' && (
+                      <div className="space-y-2">
+                        <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Father's Name</label>
+                        <div className="relative">
+                          <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
+                          <input
+                            type="text"
+                            value={fatherName}
+                            onChange={(e) => setFatherName(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 bg-stone-50/50 font-bold transition-all"
+                            placeholder="Father's Name"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -347,10 +452,9 @@ export default function ProfilePage() {
             <div className="pt-6 border-t border-stone-100 flex justify-end">
               <Button
                 type="submit"
-                loading={loading}
                 className="px-8 py-4 rounded-2xl shadow-lg shadow-emerald-600/20"
               >
-                Save Changes
+                {loading ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
           </form>

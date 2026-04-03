@@ -275,7 +275,8 @@ export function AdminGraceMarks() {
         <EditPointsModal
           isOpen={!!editingApplication}
           onClose={() => setEditingApplication(null)}
-          onConfirm={async (newMarks) => {
+          initialStatus={editingApplication.status as 'approved' | 'rejected'}
+          onConfirm={async (newMarks, newStatus) => {
             if (newMarks < 0) {
               setStatus({ type: 'error', msg: 'Marks cannot be negative.' });
               return;
@@ -296,7 +297,10 @@ export function AdminGraceMarks() {
                 
                 if (!appDoc.exists()) throw new Error('Application not found');
 
-                transaction.update(appRef, { marksToAdd: newMarks });
+                transaction.update(appRef, { 
+                  marksToAdd: newMarks,
+                  status: newStatus 
+                });
                 
                 if (studentDoc.exists()) {
                   const studentData = studentDoc.data() as Student;
@@ -315,7 +319,7 @@ export function AdminGraceMarks() {
               // Update local state
               setApplications(prev => prev.map(app => 
                 app.id === editingApplication.id 
-                  ? { ...app, marksToAdd: newMarks } 
+                  ? { ...app, marksToAdd: newMarks, status: newStatus } 
                   : app
               ));
               setStudentPoints(prev => ({

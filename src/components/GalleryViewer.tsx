@@ -66,7 +66,7 @@ export function GalleryViewer({ items, initialIndex = 0, isOpen, onClose, onDele
           <div className="flex items-center gap-2">
             {onDelete && (
               <button 
-                onClick={(e) => { e.stopPropagation(); onDelete(currentItem.id); }}
+                onClick={(e) => { e.stopPropagation(); if (currentItem.id) onDelete(currentItem.id); }}
                 className="p-3 bg-red-500/80 hover:bg-red-600 text-white rounded-2xl transition-all"
                 title="Delete Photo"
               >

@@ -17,7 +17,7 @@ export default function SkillClub() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
-  const { profile, isSafa } = useAuth();
+  const { profile, isSafa, isAdmin } = useAuth();
 
   useEffect(() => {
     const fetchRankings = async () => {
@@ -197,7 +197,7 @@ export default function SkillClub() {
       <div className="text-center max-w-2xl mx-auto space-y-4">
         <h2 className="text-4xl font-black text-stone-900 uppercase tracking-tight">SkillClub <span className="text-emerald-500">Scoreboard</span></h2>
         <p className="text-stone-500 font-medium">Celebrating excellence and active participation in college life.</p>
-        {(isSafa || profile?.role === 'admin') && (
+        {isAdmin && (
           <div className="pt-4">
             <Button 
               variant="danger" 

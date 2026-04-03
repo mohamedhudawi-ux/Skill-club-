@@ -165,7 +165,6 @@ export default function Home() {
             <h3 className="text-3xl font-black text-stone-900 flex items-center gap-3">
               <ImageIcon className="text-emerald-600" /> Gallery
             </h3>
-            <Link to="/gallery" className="text-sm font-bold text-emerald-700 hover:underline px-4 py-2 bg-emerald-50 rounded-xl">View All</Link>
           </div>
           <div className="grid grid-cols-2 gap-4">
             {gallery.length > 0 ? gallery.map((item, idx) => (

@@ -19,7 +19,7 @@ export default function Scoreboard() {
   const [skillClubEntries, setSkillClubEntries] = useState<SkillClubEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
-  const { profile, isSafa, isStaff, isStudent } = useAuth();
+  const { profile, isSafa, isStaff, isStudent, isAdmin } = useAuth();
   const chartRef = React.useRef<HTMLDivElement>(null);
   const clubChartRef = React.useRef<HTMLDivElement>(null);
 
@@ -503,7 +503,7 @@ export default function Scoreboard() {
         </Button>
       </div>
         
-        {isSafa && (
+        {isAdmin && (
           <div className="flex justify-center gap-2 mt-4">
             {!showConfirm ? (
               <Button onClick={() => setShowConfirm(true)} variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50">

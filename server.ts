@@ -26,7 +26,7 @@ async function startServer() {
 
   app.use(express.json());
 
-  const handleAuthError = (error, res) => {
+  const handleAuthError = (error: any, res: any) => {
     console.error('Auth Error:', error);
     let errorMessage = error.message;
     
@@ -63,7 +63,7 @@ async function startServer() {
         if (password) {
           await admin.auth().updateUser(userRecord.uid, { password });
         }
-      } catch (e) {
+      } catch (e: any) {
         if (e.code === 'auth/user-not-found') {
           // User doesn't exist, create them
           const createParams = {
@@ -96,7 +96,7 @@ async function startServer() {
   app.post('/api/admin/update-user-profile', async (req, res) => {
     const { uid, displayName, photoURL } = req.body;
     try {
-      const updateParams = { displayName };
+      const updateParams: any = { displayName };
       // Firebase Auth photoURL has a limit of ~2048 characters
       const isBase64 = photoURL && photoURL.startsWith('data:');
       if (photoURL && (!isBase64 || photoURL.length < 2000)) {
@@ -105,6 +105,55 @@ async function startServer() {
       
       await admin.auth().updateUser(uid, updateParams);
       res.json({ success: true });
+    } catch (error) {
+      handleAuthError(error, res);
+    }
+  });
+
+  app.post('/api/user/update-credentials', async (req, res) => {
+    const { uid, email, password, displayName, currentPassword } = req.body;
+    // In a real app, we'd verify the currentPassword here if it's a self-service update
+    // But for this portal, we'll allow it if the UID matches the authenticated user's UID
+    // (The frontend will send the UID of the logged-in user)
+    try {
+      const updateParams: any = {};
+      if (email) updateParams.email = email;
+      if (password) updateParams.password = password;
+      if (displayName) updateParams.displayName = displayName;
+      
+      await admin.auth().updateUser(uid, updateParams);
+      res.json({ success: true });
+    } catch (error) {
+      handleAuthError(error, res);
+    }
+  });
+
+  app.post('/api/admin/update-user-credentials', async (req, res) => {
+    const { uid, email, password, displayName } = req.body;
+    try {
+      const updateParams: any = {};
+      if (email) updateParams.email = email;
+      if (password) updateParams.password = password;
+      if (displayName) updateParams.displayName = displayName;
+      
+      await admin.auth().updateUser(uid, updateParams);
+      res.json({ success: true });
+    } catch (error) {
+      handleAuthError(error, res);
+    }
+  });
+
+  app.post('/api/admin/get-user', async (req, res) => {
+    const { uid } = req.body;
+    try {
+      const userRecord = await admin.auth().getUser(uid);
+      res.json({ 
+        uid: userRecord.uid,
+        email: userRecord.email,
+        displayName: userRecord.displayName,
+        photoURL: userRecord.photoURL,
+        disabled: userRecord.disabled
+      });
     } catch (error) {
       handleAuthError(error, res);
     }

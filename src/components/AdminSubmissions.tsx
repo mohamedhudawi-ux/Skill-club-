@@ -332,7 +332,7 @@ export function AdminSubmissions() {
           }}
           title="Edit Awarded Points"
           initialPoints={editingSubmission.pointsAwarded || 0}
-          initialStatus={editingSubmission.status === 'approved' ? 'approved' : 'rejected'}
+          initialStatus={editingSubmission.status as 'approved' | 'rejected'}
           label="New Points"
         />
       )}

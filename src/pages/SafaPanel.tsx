@@ -15,7 +15,7 @@ import { SiteContent } from '../types';
 import { safeToDate } from '../utils/date';
 
 export default function SafaPanel() {
-  const { profile, isSafa } = useAuth();
+  const { profile, isSafa, isAdmin } = useAuth();
   const { siteContent } = useSettings();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'programs' | 'gallery' | 'clubs' | 'boards' | 'office-bearers' | 'club-points' | 'monthly-reports' | 'treasurer' | 'scoreboard'>('programs');
@@ -1147,7 +1147,7 @@ export default function SafaPanel() {
       {activeTab === 'club-points' && (
         <div className="space-y-8">
           <div className="flex justify-end">
-            {isSafa && (
+            {isAdmin && (
               <div className="flex items-center gap-2">
                 {!showClearConfirm ? (
                   <Button 
@@ -1210,24 +1210,26 @@ export default function SafaPanel() {
               <Button type="submit" className="w-full">Award Points</Button>
             </form>
             
-            <div className="mt-8 pt-8 border-t border-stone-100">
-              <h4 className="text-sm font-bold text-stone-900 mb-4">Danger Zone</h4>
-              {!showClearStudentsConfirm ? (
-                <Button onClick={() => setShowClearStudentsConfirm(true)} variant="danger" className="w-full">
-                  Clear All Student Points
-                </Button>
-              ) : (
-                <div className="flex items-center gap-2 animate-in zoom-in duration-200">
-                  <span className="text-xs font-bold text-rose-600 uppercase tracking-widest">Are you sure?</span>
-                  <Button onClick={handleClearAllStudentPoints} variant="danger" className="text-xs py-1">
-                    Yes, Clear All
+            {isAdmin && (
+              <div className="mt-8 pt-8 border-t border-stone-100">
+                <h4 className="text-sm font-bold text-stone-900 mb-4">Danger Zone</h4>
+                {!showClearStudentsConfirm ? (
+                  <Button onClick={() => setShowClearStudentsConfirm(true)} variant="danger" className="w-full">
+                    Clear All Student Points
                   </Button>
-                  <Button onClick={() => setShowClearStudentsConfirm(false)} variant="secondary" className="text-xs py-1">
-                    Cancel
-                  </Button>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="flex items-center gap-2 animate-in zoom-in duration-200">
+                    <span className="text-xs font-bold text-rose-600 uppercase tracking-widest">Are you sure?</span>
+                    <Button onClick={handleClearAllStudentPoints} variant="danger" className="text-xs py-1">
+                      Yes, Clear All
+                    </Button>
+                    <Button onClick={() => setShowClearStudentsConfirm(false)} variant="secondary" className="text-xs py-1">
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1264,29 +1266,31 @@ export default function SafaPanel() {
                         >
                           <Trash2 size={16} />
                         </button>
-                        {confirmingClubId !== club.id ? (
-                          <button 
-                            onClick={() => setConfirmingClubId(club.id)}
-                            className="p-2 text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                            title="Clear Club Points"
-                          >
-                            <BarChart3 size={16} />
-                          </button>
-                        ) : (
-                          <div className="flex items-center gap-2 animate-in slide-in-from-right-2 duration-200">
+                        {isAdmin && (
+                          confirmingClubId !== club.id ? (
                             <button 
-                              onClick={() => handleClearIndividualClubPoints(club.id)}
-                              className="text-[10px] font-bold text-rose-600 uppercase hover:underline"
+                              onClick={() => setConfirmingClubId(club.id)}
+                              className="p-2 text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              title="Clear Club Points"
                             >
-                              Clear?
+                              <BarChart3 size={16} />
                             </button>
-                            <button 
-                              onClick={() => setConfirmingClubId(null)}
-                              className="text-[10px] font-bold text-stone-400 uppercase hover:underline"
-                            >
-                              No
-                            </button>
-                          </div>
+                          ) : (
+                            <div className="flex items-center gap-2 animate-in slide-in-from-right-2 duration-200">
+                              <button 
+                                onClick={() => handleClearIndividualClubPoints(club.id)}
+                                className="text-[10px] font-bold text-rose-600 uppercase hover:underline"
+                              >
+                                Clear?
+                              </button>
+                              <button 
+                                onClick={() => setConfirmingClubId(null)}
+                                className="text-[10px] font-bold text-stone-400 uppercase hover:underline"
+                              >
+                                No
+                              </button>
+                            </div>
+                          )
                         )}
                       </div>
                     </div>

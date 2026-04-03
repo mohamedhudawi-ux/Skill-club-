@@ -3,7 +3,11 @@ import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
 
-export const ClubMemberBulkUpload: React.FC = () => {
+interface Props {
+  onUpload?: () => void;
+}
+
+export const ClubMemberBulkUpload: React.FC<Props> = ({ onUpload }) => {
   const [csvData, setCsvData] = useState<string>('');
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<{ name: string; position: string; photoURL: string }>({
@@ -71,6 +75,7 @@ export const ClubMemberBulkUpload: React.FC = () => {
         type: 'success', 
         message: `Successfully processed ${successCount} members. ${errorCount} errors.` 
       });
+      if (successCount > 0 && onUpload) onUpload();
       setCsvData('');
       setHeaders([]);
     } catch (error: any) {

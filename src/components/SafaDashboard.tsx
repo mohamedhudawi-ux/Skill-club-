@@ -20,7 +20,7 @@ import { BrandingHeader } from './BrandingHeader';
 
 export function SafaDashboard() {
   const navigate = useNavigate();
-  const { profile, logout, user } = useAuth();
+  const { profile, user } = useAuth();
   const { siteContent, loading: settingsLoading } = useSettings();
   const [showEventForm, setShowEventForm] = useState(false);
   const [eventData, setEventData] = useState({ title: '', date: '', description: '', category: '' });
