@@ -156,7 +156,7 @@ function AppRoutes() {
         } />
         
         <Route path="/admin" element={
-          <ProtectedRoute requiredRole="admin">
+          <ProtectedRoute requiredRole="staff">
             <AdminCommandCenter />
           </ProtectedRoute>
         } />

@@ -330,19 +330,37 @@ export default function AdminCommandCenter() {
     e.preventDefault();
     if (!editingEntity) return;
 
+    // Helper to remove undefined values recursively
+    const clean = (obj: any): any => {
+      if (typeof obj !== 'object' || obj === null) return obj;
+      
+      const cleaned = Array.isArray(obj) ? [...obj] : { ...obj };
+      
+      Object.keys(cleaned).forEach(key => {
+        if (cleaned[key] === undefined) {
+          delete cleaned[key];
+        } else if (typeof cleaned[key] === 'object' && cleaned[key] !== null) {
+          cleaned[key] = clean(cleaned[key]);
+        }
+      });
+      return cleaned;
+    };
+
+    const cleanedData = clean(editingEntity.data);
+
     try {
       if (editingEntity.type === 'user') {
-        await updateDoc(doc(db, 'users', editingEntity.id), editingEntity.data);
+        await updateDoc(doc(db, 'users', editingEntity.id), cleanedData);
         
         // Update Auth Profile
         await fetch('/api/admin/update-user-profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+          body: JSON.stringify(clean({ 
             uid: editingEntity.id, 
-            displayName: editingEntity.data.displayName,
-            photoURL: editingEntity.data.photoURL
-          })
+            displayName: cleanedData.displayName,
+            photoURL: cleanedData.photoURL
+          }))
         });
 
         if (newPassword) {
@@ -353,24 +371,24 @@ export default function AdminCommandCenter() {
           });
         }
       } else if (editingEntity.type === 'student') {
-        await updateDoc(doc(db, 'students', editingEntity.id), editingEntity.data);
+        await updateDoc(doc(db, 'students', editingEntity.id), cleanedData);
         // Also update users collection if student has an account
         const user = users.find(u => u.admissionNumber === editingEntity.id);
         if (user) {
-          await updateDoc(doc(db, 'users', user.uid), {
-            displayName: editingEntity.data.name,
-            photoURL: editingEntity.data.photoURL
-          });
+          await updateDoc(doc(db, 'users', user.uid), clean({
+            displayName: cleanedData.name,
+            photoURL: cleanedData.photoURL
+          }));
 
           // Update Auth Profile
           const authResponse = await fetch('/api/admin/update-user-profile', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify(clean({ 
               uid: user.uid, 
-              displayName: editingEntity.data.name,
-              photoURL: editingEntity.data.photoURL
-            })
+              displayName: cleanedData.name,
+              photoURL: cleanedData.photoURL
+            }))
           });
           if (!authResponse.ok) {
             const result = await authResponse.json();
@@ -408,12 +426,13 @@ export default function AdminCommandCenter() {
       } else {
         const coll = editingEntity.type === 'club' ? 'clubs' : 
                      editingEntity.type === 'board' ? 'boards' : 'officeBearers';
-        await updateDoc(doc(db, coll, editingEntity.id), editingEntity.data);
+        await updateDoc(doc(db, coll, editingEntity.id), cleanedData);
       }
       setEditingEntity(null);
       setNewPassword('');
       setStatus({ type: 'success', msg: 'Updated successfully!' });
     } catch (error) {
+      console.error(error);
       setStatus({ type: 'error', msg: 'Update failed.' });
     }
   };
@@ -1399,15 +1418,16 @@ export default function AdminCommandCenter() {
           >
             <div className="space-y-1">
               <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Full Name</label>
-              <input name="name" placeholder="Student Name" className="w-full px-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white" required />
+              <input name="name" placeholder="Student Name" className="w-full px-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white" />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Admission Number</label>
-              <input name="admissionNumber" placeholder="e.g. 1234" className="w-full px-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white" required />
+              <input name="admissionNumber" placeholder="e.g. 1234" className="w-full px-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white" />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Class</label>
-              <select name="class" className="w-full px-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white" required>
+              <select name="class" className="w-full px-4 py-3 rounded-2xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+                <option value="">Select Class</option>
                 {CLASS_LIST.map(cls => <option key={cls} value={cls}>{cls}</option>)}
               </select>
             </div>
@@ -1440,7 +1460,10 @@ export default function AdminCommandCenter() {
                   <td className="px-6 py-4 font-bold text-stone-900">{student.name}</td>
                   <td className="px-6 py-4 text-sm text-stone-500 font-mono">{student.admissionNumber}</td>
                   <td className="px-6 py-4 text-sm text-stone-500 font-bold">{student.class || 'N/A'}</td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setEditingEntity({ type: 'student', id: student.admissionNumber!, data: student })}>
+                      <Edit2 size={14} />
+                    </Button>
                     <Button variant="danger" size="sm" onClick={() => setConfirmDelete({ coll: 'students', id: student.admissionNumber!, title: 'Delete Student?', message: `Are you sure you want to delete ${student.name}?` })}>
                       <Trash2 size={14} />
                     </Button>
