@@ -86,14 +86,7 @@ export default function Home() {
             </p>
           </div>
           <div className="relative">
-            <div className="aspect-square rounded-[3rem] overflow-hidden shadow-2xl rotate-3 hover:rotate-0 transition-transform duration-500">
-              <img 
-                src={collegeLogo || "https://images.unsplash.com/photo-1523050335102-c3250908b30f?auto=format&fit=crop&q=80"} 
-                alt="College Logo" 
-                className="w-full h-full object-contain p-12 bg-white"
-                referrerPolicy="no-referrer"
-              />
-            </div>
+            {/* Logo removed as requested */}
           </div>
         </div>
       </section>

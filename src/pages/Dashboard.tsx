@@ -345,18 +345,23 @@ export default function Dashboard() {
                 <Card className="lg:col-span-2 p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-bold text-stone-900 flex items-center gap-2">
-                      <Calendar className="text-emerald-600" /> Upcoming Programs
+                      <Calendar className="text-emerald-600" /> Calendar
                     </h3>
                   </div>
                   <div className="space-y-4">
-                    {programs.length > 0 ? programs.map((program) => (
+                    {programs.length > 0 ? programs.map((program) => {
+                      const isNew = program.timestamp && (new Date().getTime() - program.timestamp.toDate().getTime()) < 24 * 60 * 60 * 1000;
+                      return (
                       <div key={program.id} className="flex items-start gap-4 p-4 rounded-2xl hover:bg-stone-50 transition-colors border border-transparent hover:border-stone-100">
                         <div className="bg-emerald-100 text-emerald-700 p-2 rounded-lg">
                           <Calendar size={20} />
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between items-start">
-                            <h4 className="font-bold text-stone-900">{program.title}</h4>
+                            <h4 className="font-bold text-stone-900 flex items-center gap-2">
+                              {program.title}
+                              {isNew && <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full uppercase tracking-widest">New</span>}
+                            </h4>
                             <span className="text-emerald-700 font-black text-xs">{program.date}</span>
                           </div>
                           <p className="text-sm text-stone-500 mt-1">{program.description}</p>
@@ -365,7 +370,7 @@ export default function Dashboard() {
                           </p>
                         </div>
                       </div>
-                    )) : (
+                    )}) : (
                       <div className="text-center py-12 text-stone-400 italic">
                         No upcoming programs scheduled.
                       </div>
