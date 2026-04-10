@@ -20,6 +20,7 @@ import { AdminDashboard } from '../components/AdminDashboard';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { safeToDate } from '../utils/date';
+import { motion } from 'motion/react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -30,7 +31,18 @@ export default function Dashboard() {
   const [entries, setEntries] = useState<SkillClubEntry[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [accessAllowed, setAccessAllowed] = useState(true);
+
+  useEffect(() => {
+    if (isStudent && profile?.uid) {
+      import('../lib/portalAccess').then(({ checkPortalAccess }) => {
+        checkPortalAccess(profile.uid).then(allowed => {
+          setAccessAllowed(allowed);
+        });
+      });
+    }
+  }, [isStudent, profile?.uid]);
+
   const queryParams = new URLSearchParams(location.search);
   const tabFromUrl = queryParams.get('tab') as any;
   const [activeTab, setActiveTab] = useState<'overview' | 'scoreboard' | 'rules' | 'queries' | 'notifications' | 'staff-directory'>(tabFromUrl || 'overview');
@@ -187,6 +199,9 @@ export default function Dashboard() {
       </div>
     </div>
   );
+
+  if (isStudent && !accessAllowed) return <div className="p-8 text-center text-red-600 font-bold text-2xl">You have reached your daily limit of 7 portal visits. Please try again tomorrow.</div>;
+
 
   if (isAdmin) return <AdminDashboard />;
   if (isStaff) return <StaffDashboard />;
@@ -407,7 +422,12 @@ export default function Dashboard() {
               <Card className="p-6">
                 <div className="flex items-center gap-4 mb-4">
                   {content.find(c => c.key === 'skillclub_logo')?.value && (
-                    <img src={content.find(c => c.key === 'skillclub_logo')?.value} alt="Skill Club Logo" className="w-16 h-16 object-contain" />
+                    <motion.img 
+                      whileHover={{ scale: 1.2 }}
+                      src={content.find(c => c.key === 'skillclub_logo')?.value} 
+                      alt="Skill Club Logo" 
+                      className="w-16 h-16 object-contain" 
+                    />
                   )}
                   <h3 className="text-xl font-bold text-stone-900">Skill Club</h3>
                 </div>

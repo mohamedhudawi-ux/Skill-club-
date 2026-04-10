@@ -1,11 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { 
   User, 
   Shield, 
   Users, 
-  Layout, 
   ChevronRight, 
   GraduationCap, 
   Briefcase, 
@@ -20,6 +19,33 @@ import { Card } from '../components/Card';
 export default function Portal() {
   const { isAdmin, isStaff, isSafa, isStudent, isAcademic, profile } = useAuth();
   const navigate = useNavigate();
+  const [accessAllowed, setAccessAllowed] = useState(true);
+
+  useEffect(() => {
+    if (isStudent && profile?.uid) {
+      import('../lib/portalAccess').then(({ checkPortalAccess }) => {
+        checkPortalAccess(profile.uid).then(allowed => {
+          setAccessAllowed(allowed);
+        });
+      });
+    }
+  }, [isStudent, profile?.uid]);
+
+  const handlePortalClick = async (path: string, id: string) => {
+    if (isStudent && id === 'student') {
+      import('../lib/portalAccess').then(({ checkPortalAccess }) => {
+        checkPortalAccess(profile!.uid).then(allowed => {
+          if (allowed) {
+            navigate(path);
+          } else {
+            alert('You have reached your daily limit of 7 portal visits. Please try again tomorrow.');
+          }
+        });
+      });
+    } else {
+      navigate(path);
+    }
+  };
 
   const portals = [
     {
@@ -113,7 +139,7 @@ export default function Portal() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4, delay: index * 0.1 }}
-            onClick={() => navigate(portal.path)}
+            onClick={() => handlePortalClick(portal.path, portal.id)}
             className="cursor-pointer"
           >
             <Card className="group relative p-8 hover:shadow-xl hover:shadow-stone-200/50 transition-all overflow-hidden h-full">

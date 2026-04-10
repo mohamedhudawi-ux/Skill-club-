@@ -254,10 +254,29 @@ export default function StudentManagementPage() {
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
+      // Find the user by admissionNumber
+      const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', deleteConfirm));
+      const userDocs = await getDocs(usersQuery);
+      
+      if (!userDocs.empty) {
+        const uid = userDocs.docs[0].id;
+        // Delete user from Firebase Auth via backend API
+        await fetch('/api/admin/delete-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid })
+        });
+        // Delete user document from Firestore
+        await deleteDoc(doc(db, 'users', uid));
+      }
+
+      // Delete student document
       await deleteDoc(doc(db, 'students', deleteConfirm));
       setDeleteConfirm(null);
+      setStatus({ type: 'success', msg: 'Student and account deleted successfully.' });
     } catch (error) {
       console.error('Failed to delete student:', error);
+      setStatus({ type: 'error', msg: 'Failed to delete student.' });
     }
   };
 

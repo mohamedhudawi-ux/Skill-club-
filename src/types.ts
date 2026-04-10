@@ -177,6 +177,9 @@ export interface Program {
   description?: string;
   addedBy: string;
   timestamp: any;
+  type?: string;
+  time?: string;
+  location?: string;
 }
 
 export interface GalleryItem {

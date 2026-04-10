@@ -6,11 +6,11 @@ import { WorkSubmission, Student, SKILL_CLUB_RULES } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
-import { CheckCircle, XCircle, Clock, ExternalLink, Edit2 } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, ExternalLink, Edit2, Download } from 'lucide-react';
 import { EditPointsModal } from './EditPointsModal';
 
 export function AdminSubmissions() {
-  const { profile, isStaff } = useAuth();
+  const { profile, isStaff, isAdmin } = useAuth();
   const [submissions, setSubmissions] = useState<WorkSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -197,14 +197,23 @@ export function AdminSubmissions() {
                   <p className="text-stone-600 text-sm whitespace-pre-wrap">{sub.description}</p>
                   
                   {sub.fileUrl && (
-                    <a 
-                      href={sub.fileUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700"
-                    >
-                      <ExternalLink size={16} /> View Attached File
-                    </a>
+                    <div className="flex items-center gap-4">
+                      <a 
+                        href={sub.fileUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700"
+                      >
+                        <ExternalLink size={16} /> View Attached File
+                      </a>
+                      <a 
+                        href={sub.fileUrl} 
+                        download
+                        className="inline-flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-stone-700"
+                      >
+                        <Download size={16} /> Download
+                      </a>
+                    </div>
                   )}
                   
                   <div className="text-xs text-stone-400">
@@ -212,7 +221,7 @@ export function AdminSubmissions() {
                   </div>
                 </div>
 
-                {sub.status === 'pending' && (
+                {sub.status === 'pending' && isAdmin && (
                   <div className="flex flex-col gap-3 min-w-[200px] bg-stone-50 p-4 rounded-xl border border-stone-100">
                     <div>
                       <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Award Points</label>

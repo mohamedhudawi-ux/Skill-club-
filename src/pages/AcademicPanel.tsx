@@ -10,8 +10,14 @@ import { AdminSubmissions } from '../components/AdminSubmissions';
 import { AdminGraceMarks } from '../components/AdminGraceMarks';
 
 export default function AcademicPanel() {
-  const { profile } = useAuth();
+  const { profile, isStaff, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'performance' | 'submissions' | 'gracemarks' | 'reports'>('performance');
+
+  useEffect(() => {
+    if (isStaff && !isAdmin) {
+      setActiveTab('submissions');
+    }
+  }, [isStaff, isAdmin]);
   const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [downloading, setDownloading] = useState(false);
   
@@ -187,14 +193,16 @@ export default function AcademicPanel() {
         <h2 className="text-3xl font-black text-stone-900">Academic Panel</h2>
         
         <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-stone-100 shadow-sm">
-          <button
-            onClick={() => setActiveTab('performance')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-              activeTab === 'performance' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'text-stone-500 hover:bg-stone-50'
-            }`}
-          >
-            <Star size={16} /> Performance
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('performance')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                activeTab === 'performance' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'text-stone-500 hover:bg-stone-50'
+              }`}
+            >
+              <Star size={16} /> Performance
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('submissions')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
@@ -231,7 +239,7 @@ export default function AcademicPanel() {
         </div>
       )}
 
-      {activeTab === 'performance' && (
+      {isAdmin && activeTab === 'performance' && (
         <Card className="p-8 max-w-2xl mx-auto">
           <h3 className="text-xl font-bold text-stone-900 mb-6 flex items-center gap-2">
             <Star className="text-emerald-600" /> SkillClub Performance Entry

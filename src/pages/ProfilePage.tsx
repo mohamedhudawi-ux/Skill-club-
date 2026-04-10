@@ -279,7 +279,10 @@ export default function ProfilePage() {
                       type="text"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 bg-stone-50/50 font-bold transition-all"
+                      disabled={profile?.role === 'student'}
+                      className={`w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 font-bold transition-all ${
+                        profile?.role === 'student' ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-stone-50/50 text-stone-900'
+                      }`}
                       placeholder="Enter your full name"
                       required
                     />
@@ -441,11 +444,15 @@ export default function ProfilePage() {
 
               <div className="space-y-2">
                 <label className="block text-xs font-black text-stone-500 uppercase tracking-widest ml-1">Profile Picture</label>
-                <ImageUpload
-                  label="Upload Profile Photo"
-                  onUpload={(base64) => setPhotoURL(base64)}
-                  currentImageUrl={photoURL}
-                />
+                {profile?.role !== 'student' ? (
+                  <ImageUpload
+                    label="Upload Profile Photo"
+                    onUpload={(base64) => setPhotoURL(base64)}
+                    currentImageUrl={photoURL}
+                  />
+                ) : (
+                  <p className="text-xs text-stone-400 font-medium italic">Profile picture can only be updated by administrators.</p>
+                )}
               </div>
             </div>
 
