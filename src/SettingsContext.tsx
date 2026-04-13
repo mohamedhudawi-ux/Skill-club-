@@ -26,20 +26,23 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   };
 
   const fetchSettings = async (force = false) => {
-    try {
-      if (!force) {
-        const cached = localStorage.getItem('systemSettingsCache');
-        const cacheTime = localStorage.getItem('systemSettingsCacheTime');
-        if (cached && cacheTime) {
-          const now = new Date().getTime();
-          const age = now - parseInt(cacheTime);
-          if (age < 3600000) { // 1 hour cache
-            setSettings(JSON.parse(cached));
-            return;
-          }
+    const cached = localStorage.getItem('systemSettingsCache');
+    if (cached) {
+      setSettings(JSON.parse(cached));
+    }
+
+    if (!force) {
+      const cacheTime = localStorage.getItem('systemSettingsCacheTime');
+      if (cached && cacheTime) {
+        const now = new Date().getTime();
+        const age = now - parseInt(cacheTime);
+        if (age < 3600000) { // 1 hour cache
+          return;
         }
       }
+    }
 
+    try {
       const docSnap = await getDoc(doc(db, 'settings', 'system'));
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -54,20 +57,23 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   };
 
   const fetchContent = async (force = false) => {
-    try {
-      if (!force) {
-        const cached = localStorage.getItem('siteContentCache');
-        const cacheTime = localStorage.getItem('siteContentCacheTime');
-        if (cached && cacheTime) {
-          const now = new Date().getTime();
-          const age = now - parseInt(cacheTime);
-          if (age < 3600000) { // 1 hour cache
-            setSiteContent(JSON.parse(cached));
-            return;
-          }
+    const cached = localStorage.getItem('siteContentCache');
+    if (cached) {
+      setSiteContent(JSON.parse(cached));
+    }
+
+    if (!force) {
+      const cacheTime = localStorage.getItem('siteContentCacheTime');
+      if (cached && cacheTime) {
+        const now = new Date().getTime();
+        const age = now - parseInt(cacheTime);
+        if (age < 3600000) { // 1 hour cache
+          return;
         }
       }
+    }
 
+    try {
       const snapshot = await getDocs(collection(db, 'siteContent'));
       const content = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SiteContent));
       setSiteContent(content);
