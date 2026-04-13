@@ -289,10 +289,10 @@ export default function StudentManagementPage() {
       const normalizedName = (editingStudent.name || '').toUpperCase();
       await updateDoc(studentRef, {
         name: normalizedName,
-        class: editingStudent.class,
-        photoURL: editingStudent.photoURL,
-        phone: editingStudent.phone,
-        email: editingStudent.email,
+        class: editingStudent.class || '',
+        photoURL: editingStudent.photoURL || '',
+        phone: editingStudent.phone || '',
+        email: editingStudent.email || '',
         fatherName: editingStudent.fatherName || '',
         dob: editingStudent.dob || '',
         address: editingStudent.address || ''
@@ -306,9 +306,9 @@ export default function StudentManagementPage() {
           const userRef = doc(db, 'users', userDocs.docs[0].id);
           await updateDoc(userRef, {
             displayName: normalizedName,
-            photoURL: editingStudent.photoURL,
-            phone: editingStudent.phone,
-            email: editingStudent.email
+            photoURL: editingStudent.photoURL || '',
+            phone: editingStudent.phone || '',
+            email: editingStudent.email || ''
           });
         }
       }
