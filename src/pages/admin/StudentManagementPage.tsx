@@ -17,7 +17,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
 export default function StudentManagementPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isStaff } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
@@ -699,9 +699,11 @@ export default function StudentManagementPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-black text-stone-900">Student Management</h2>
-        <Button onClick={() => setIsAdding(true)} className="flex items-center gap-2">
-          <Plus size={18} /> Add New Student
-        </Button>
+        {(isAdmin || isStaff) && (
+          <Button onClick={() => setIsAdding(true)} className="flex items-center gap-2">
+            <Plus size={18} /> Add New Student
+          </Button>
+        )}
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-4">
@@ -838,9 +840,11 @@ export default function StudentManagementPage() {
                   >
                     <Edit2 size={16} />
                   </Button>
-                  <Button variant="danger" className="p-2" onClick={() => setDeleteConfirm(student.id!)}>
-                    <Trash2 size={16} />
-                  </Button>
+                  {(isAdmin || isStaff) && (
+                    <Button variant="danger" className="p-2" onClick={() => setDeleteConfirm(student.id!)}>
+                      <Trash2 size={16} />
+                    </Button>
+                  )}
                 </td>
               </tr>
             )) : (
@@ -887,33 +891,33 @@ export default function StudentManagementPage() {
               <form onSubmit={handleAddStudent} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Full Name</label>
-                  <input name="name" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                  <input name="name" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Admission Number</label>
-                  <input name="admissionNumber" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                  <input name="admissionNumber" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Class</label>
-                  <select name="class" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" required>
+                  <select name="class" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none">
                     {CLASS_LIST.map(cls => <option key={cls} value={cls}>{cls}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Father's Name</label>
-                  <input name="fatherName" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                  <input name="fatherName" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Date of Birth</label>
-                  <input name="dob" type="date" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                  <input name="dob" type="date" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Address</label>
-                  <input name="address" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                  <input name="address" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Phone</label>
-                  <input name="phone" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" required />
+                  <input name="phone" className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Email</label>
@@ -1000,7 +1004,6 @@ export default function StudentManagementPage() {
                     value={editingStudent.name || ''}
                     onChange={e => setEditingStudent({ ...editingStudent, name: e.target.value })}
                     className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                    required
                   />
                 </div>
                 <div>
