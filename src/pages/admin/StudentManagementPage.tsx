@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, updateDoc, setDoc, where, getDocs, limit, getDoc, startAfter, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, updateDoc, setDoc, where, getDocs, limit, getDoc, startAfter, orderBy, addDoc } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import firebaseConfig from '../../../firebase-applet-config.json';
@@ -286,7 +286,7 @@ export default function StudentManagementPage() {
     setIsUpdating(true);
     try {
       const studentRef = doc(db, 'students', editingStudent.id!);
-      const normalizedName = editingStudent.name.toUpperCase();
+      const normalizedName = (editingStudent.name || '').toUpperCase();
       await updateDoc(studentRef, {
         name: normalizedName,
         class: editingStudent.class,
@@ -403,18 +403,20 @@ export default function StudentManagementPage() {
     try {
       setLoading(true);
       
-      const q = query(collection(db, 'students'), where('admissionNumber', '==', admissionNumber));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        setStatus({ type: 'error', msg: 'Admission number already exists.' });
-        setLoading(false);
-        return;
+      if (admissionNumber) {
+        const q = query(collection(db, 'students'), where('admissionNumber', '==', admissionNumber));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          setStatus({ type: 'error', msg: 'Admission number already exists.' });
+          setLoading(false);
+          return;
+        }
       }
 
-      const normalizedName = name.toUpperCase();
-      await setDoc(doc(db, 'students', admissionNumber), {
+      const normalizedName = (name || '').toUpperCase();
+      const studentData = {
         name: normalizedName,
-        admissionNumber,
+        admissionNumber: admissionNumber || '',
         class: studentClass,
         fatherName,
         dob,
@@ -426,7 +428,13 @@ export default function StudentManagementPage() {
         categoryPoints: {},
         badges: [],
         createdAt: new Date().toISOString()
-      });
+      };
+
+      if (admissionNumber) {
+        await setDoc(doc(db, 'students', admissionNumber), studentData);
+      } else {
+        await addDoc(collection(db, 'students'), studentData);
+      }
 
       setStatus({ type: 'success', msg: `Student ${normalizedName} added successfully!` });
       setIsAdding(false);
