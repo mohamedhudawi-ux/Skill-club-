@@ -173,7 +173,7 @@ export function SafaDashboard() {
               Safa Executive Portal
             </div>
             <div className="h-px w-12 bg-white/20" />
-            <span className="text-stone-300 text-xs font-bold tracking-widest uppercase">{getFullHijriDate(parseInt(siteContent.find(c => c.key === 'hijri_offset')?.value || '0'))}</span>
+            <span className="text-white text-xs font-bold tracking-widest uppercase">{getFullHijriDate(parseInt(siteContent.find(c => c.key === 'hijri_offset')?.value || '0'))}</span>
           </div>
           
           <h1 className="text-7xl md:text-9xl font-black tracking-tighter leading-[0.8] mb-10 uppercase text-emerald-500">
