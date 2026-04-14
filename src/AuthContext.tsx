@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, query, collection, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, query, collection, where, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { UserProfile, UserRole } from './types';
 
@@ -69,6 +69,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 finalProfile = { ...finalProfile, admissionNumber: prefix };
                 await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile, { merge: true });
               }
+            }
+          }
+          
+          // Access tracking for students
+          if (finalProfile.role === 'student') {
+            const today = new Date().toISOString().split('T')[0];
+            if (finalProfile.lastAccessDate !== today) {
+              finalProfile = { ...finalProfile, dailyAccessCount: 1, lastAccessDate: today };
+              await updateDoc(doc(db, 'users', firebaseUser.uid), { dailyAccessCount: 1, lastAccessDate: today });
+            } else if ((finalProfile.dailyAccessCount || 0) < 7) {
+              const newCount = (finalProfile.dailyAccessCount || 0) + 1;
+              finalProfile = { ...finalProfile, dailyAccessCount: newCount };
+              await updateDoc(doc(db, 'users', firebaseUser.uid), { dailyAccessCount: newCount });
+            } else {
+              // Block access
+              await auth.signOut();
+              setProfile(null);
+              setLoading(false);
+              return;
             }
           }
           

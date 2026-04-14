@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, updateDoc, setDoc, where, getDocs, limit, getDoc, startAfter, orderBy, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, updateDoc, setDoc, where, getDocs, limit, getDoc, startAfter, orderBy, addDoc, writeBatch } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import firebaseConfig from '../../../firebase-applet-config.json';
@@ -36,7 +36,75 @@ export default function StudentManagementPage() {
   const [loading, setLoading] = useState(false);
   const [newStudentPhoto, setNewStudentPhoto] = useState<string | undefined>(undefined);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkClass, setBulkClass] = useState('');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === students.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(students.map(s => s.id!)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} selected students?`)) return;
+
+    setIsBulkUpdating(true);
+    try {
+      const batch = writeBatch(db);
+      selectedIds.forEach(id => {
+        batch.delete(doc(db, 'students', id));
+      });
+      await batch.commit();
+      
+      setStatus({ type: 'success', msg: `Successfully deleted ${selectedIds.size} students.` });
+      setSelectedIds(new Set());
+      fetchStudents(false);
+    } catch (err: any) {
+      console.error('Error bulk deleting:', err);
+      setStatus({ type: 'error', msg: 'Failed to delete students: ' + err.message });
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkClassChange = async () => {
+    if (selectedIds.size === 0 || !bulkClass) return;
+    if (!window.confirm(`Are you sure you want to change the class to ${bulkClass} for ${selectedIds.size} selected students?`)) return;
+
+    setIsBulkUpdating(true);
+    try {
+      const batch = writeBatch(db);
+      selectedIds.forEach(id => {
+        batch.update(doc(db, 'students', id), { class: bulkClass });
+      });
+      await batch.commit();
+
+      setStatus({ type: 'success', msg: `Successfully updated class for ${selectedIds.size} students.` });
+      setSelectedIds(new Set());
+      setBulkClass('');
+      fetchStudents(false);
+    } catch (err: any) {
+      console.error('Error bulk updating class:', err);
+      setStatus({ type: 'error', msg: 'Failed to update class: ' + err.message });
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
 
   const fetchStudents = async (isNext = false) => {
     try {
@@ -760,10 +828,59 @@ export default function StudentManagementPage() {
         </div>
       )}
 
+      {selectedIds.size > 0 && (
+        <div className="bg-stone-900 text-white px-6 py-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 sticky top-4 z-10 shadow-xl animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-bold bg-stone-800 px-3 py-1 rounded-full">{selectedIds.size} Selected</span>
+            <Button variant="secondary" className="text-xs bg-stone-800 border-none text-white hover:bg-stone-700" onClick={() => setSelectedIds(new Set())}>
+              Deselect All
+            </Button>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-stone-800 p-1 rounded-xl">
+              <select 
+                className="bg-transparent text-xs font-bold px-3 py-1 outline-none border-none"
+                value={bulkClass}
+                onChange={(e) => setBulkClass(e.target.value)}
+              >
+                <option value="" className="text-stone-900">Change Class...</option>
+                {CLASS_LIST.map(c => <option key={c} value={c} className="text-stone-900">{c}</option>)}
+              </select>
+              <Button 
+                variant="primary" 
+                className="py-1 px-4 text-xs"
+                disabled={!bulkClass || isBulkUpdating}
+                onClick={handleBulkClassChange}
+              >
+                Apply
+              </Button>
+            </div>
+            <div className="h-6 w-px bg-stone-700 mx-1" />
+            <Button 
+              variant="secondary" 
+              className="bg-red-500/10 text-red-400 hover:bg-red-500/20 border-none text-xs font-bold py-2 px-4"
+              disabled={isBulkUpdating}
+              onClick={handleBulkDelete}
+            >
+              <Trash2 size={14} className="mr-2" />
+              Delete Selected
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Card className="overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[600px]">
           <thead>
             <tr className="bg-stone-50 border-b border-stone-100">
+              <th className="px-6 py-4 w-10">
+                <input 
+                  type="checkbox" 
+                  className="rounded border-stone-300 text-emerald-600 focus:ring-emerald-500"
+                  checked={students.length > 0 && selectedIds.size === students.length}
+                  onChange={toggleSelectAll}
+                />
+              </th>
               <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase">Student</th>
               <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase">Admission No.</th>
               <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase">Email</th>
@@ -774,7 +891,15 @@ export default function StudentManagementPage() {
           </thead>
           <tbody className="divide-y divide-stone-50">
             {students.length > 0 ? students.map((student) => (
-              <tr key={student.id} className="hover:bg-stone-50 transition-colors">
+              <tr key={student.id} className={`hover:bg-stone-50 transition-colors ${selectedIds.has(student.id!) ? 'bg-emerald-50/30' : ''}`}>
+                <td className="px-6 py-4">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-stone-300 text-emerald-600 focus:ring-emerald-500"
+                    checked={selectedIds.has(student.id!)}
+                    onChange={() => toggleSelect(student.id!)}
+                  />
+                </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <img src={student.photoURL || `https://ui-avatars.com/api/?name=${student.name}&background=random`} className="w-8 h-8 rounded-full" alt="" />

@@ -16,6 +16,7 @@ import { useAuth } from '../AuthContext';
 import { useSettings } from '../SettingsContext';
 import { Card } from './Card';
 import { Button } from './Button';
+import { getCachedData, setCachedData } from '../lib/cache';
 
 import { AdminSubmissions } from './AdminSubmissions';
 import { AdminGraceMarks } from './AdminGraceMarks';
@@ -51,54 +52,62 @@ export function AdminDashboard() {
   useEffect(() => {
     if (authLoading || settingsLoading) return;
     
-    const unsubscribers: (() => void)[] = [];
-
-    const setupListeners = () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
 
-      // Students Count
-      unsubscribers.push(onSnapshot(collection(db, 'students'), (snap) => {
-        setStats(prev => ({ ...prev, totalStudents: snap.size }));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
+      const collections = [
+        { name: 'students', key: 'totalStudents', setter: (snap: any) => setStats(prev => ({ ...prev, totalStudents: snap.size })) },
+        { name: 'skillClubEntries', key: 'totalActivities', setter: (snap: any) => setStats(prev => ({ ...prev, totalActivities: snap.size })) },
+        { name: 'clubs', key: 'totalClubs', setter: (snap: any) => setStats(prev => ({ ...prev, totalClubs: snap.size })) },
+      ];
 
-      // Top Students
-      unsubscribers.push(onSnapshot(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(5)), (snap) => {
-        setStats(prev => ({ ...prev, topStudents: snap.docs.map(doc => doc.data() as Student) }));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
+      for (const col of collections) {
+        const cached = getCachedData(col.name);
+        if (cached) {
+          col.setter({ size: cached.length });
+        } else {
+          try {
+            const snap = await getDocs(collection(db, col.name));
+            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setCachedData(col.name, data);
+            col.setter({ size: data.length });
+          } catch (err: any) {
+            handleFirestoreError(err, OperationType.LIST, col.name);
+          }
+        }
+      }
 
-      // Activities Count
-      unsubscribers.push(onSnapshot(collection(db, 'skillClubEntries'), (snap) => {
-        setStats(prev => ({ ...prev, totalActivities: snap.size }));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'skillClubEntries')));
+      // Fetch pending counts and recent data
+      try {
+        const [queriesSnap, submissionsSnap, graceMarksSnap] = await Promise.all([
+          getDocs(query(collection(db, 'queries'), where('status', '==', 'pending'))),
+          getDocs(query(collection(db, 'workSubmissions'), where('status', '==', 'pending'))),
+          getDocs(query(collection(db, 'graceMarkApplications'), where('status', '==', 'pending')))
+        ]);
 
-      // Pending Queries
-      unsubscribers.push(onSnapshot(query(collection(db, 'queries'), where('status', '==', 'pending')), (snap) => {
-        setStats(prev => ({ ...prev, pendingQueries: snap.size }));
-        setQueries(snap.docs.slice(0, 5).map(doc => ({ id: doc.id, ...doc.data() } as Query)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'queries')));
+        setStats(prev => ({
+          ...prev,
+          pendingQueries: queriesSnap.size,
+          pendingSubmissions: submissionsSnap.size,
+          pendingGraceMarks: graceMarksSnap.size
+        }));
 
-      // Pending Submissions
-      unsubscribers.push(onSnapshot(query(collection(db, 'workSubmissions'), where('status', '==', 'pending')), (snap) => {
-        setStats(prev => ({ ...prev, pendingSubmissions: snap.size }));
-        setSubmissions(snap.docs.slice(0, 5).map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'workSubmissions')));
+        setQueries(queriesSnap.docs.slice(0, 5).map(doc => ({ id: doc.id, ...doc.data() } as Query)));
+        setSubmissions(submissionsSnap.docs.slice(0, 5).map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
 
-      // Pending Grace Marks
-      unsubscribers.push(onSnapshot(query(collection(db, 'graceMarkApplications'), where('status', '==', 'pending')), (snap) => {
-        setStats(prev => ({ ...prev, pendingGraceMarks: snap.size }));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'graceMarkApplications')));
+        // Fetch top students
+        const topSnap = await getDocs(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(5)));
+        setStats(prev => ({ ...prev, topStudents: topSnap.docs.map(doc => doc.data() as Student) }));
 
-      // Clubs Count
-      unsubscribers.push(onSnapshot(collection(db, 'clubs'), (snap) => {
-        setStats(prev => ({ ...prev, totalClubs: snap.size }));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubs')));
+      } catch (err: any) {
+        handleFirestoreError(err, OperationType.LIST, 'dashboard-data');
+      }
 
       setLoading(false);
     };
 
-    setupListeners();
-    return () => unsubscribers.forEach(unsub => unsub());
+    fetchData();
   }, [authLoading, settingsLoading]);
 
   const handleReply = async (queryId: string, reply: string) => {

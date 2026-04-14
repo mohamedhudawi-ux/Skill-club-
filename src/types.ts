@@ -14,6 +14,8 @@ export interface UserProfile {
   classTeacher?: string;
   totalPoints?: number;
   badges?: string[];
+  dailyAccessCount?: number;
+  lastAccessDate?: string;
   createdAt?: string;
 }
 
