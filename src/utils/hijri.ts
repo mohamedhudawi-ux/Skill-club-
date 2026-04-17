@@ -44,8 +44,14 @@ export function getHijriMonthName(offset?: number) {
   return getAdjustedMoment(offset).format('iMMMM');
 }
 
+
 export function getFullHijriDate(offset?: number) {
   const date = getAdjustedMoment(offset).format('iMMMM iDD, iYYYY');
   // Replace Ramadhan with Ramadan if needed, but moment-hijri uses Ramadhan
   return date.replace('Ramadhan', 'Ramadan');
+}
+
+export function getGregorianDate(hijriYear: string, hijriMonth: string, hijriDay: string): string {
+  // Format: iYYYY-iMM-iDD
+  return moment(`${hijriYear}-${hijriMonth}-${hijriDay}`, 'iYYYY-iMM-iDD').format('YYYY-MM-DD');
 }

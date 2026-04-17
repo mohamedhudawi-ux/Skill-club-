@@ -12,6 +12,7 @@ import { Button } from '../components/Button';
 import Scoreboard from './Scoreboard';
 import { SiteContent } from '../types';
 import { safeToDate } from '../utils/date';
+import { getGregorianDate } from '../utils/hijri';
 
 export default function SafaPanel() {
   const { profile, isSafa, isAdmin } = useAuth();
@@ -41,7 +42,7 @@ export default function SafaPanel() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        if (activeTab === 'clubs' || activeTab === 'club-points' || activeTab === 'scoreboard') {
+        if (activeTab === 'clubs' || activeTab === 'club-points' || activeTab === 'scoreboard' || activeTab === 'programs') {
           const snapshot = await getDocs(collection(db, 'clubs'));
           setClubs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
         }
@@ -92,7 +93,7 @@ export default function SafaPanel() {
   }, [activeTab]);
 
   // Form States
-  const [newProgram, setNewProgram] = useState({ title: '', date: '', description: '' });
+  const [newProgram, setNewProgram] = useState({ title: '', date: '', description: '', location: '', clubId: '', otherClubName: '', useHijri: false, hijriYear: '', hijriMonth: '', hijriDay: '' });
   const [newGallery, setNewGallery] = useState({ url: '', caption: '' });
   const [newClub, setNewClub] = useState({ name: '', description: '', logoUrl: '' });
   const [newClubMember, setNewClubMember] = useState({ clubId: '', name: '', position: '', photoUrl: '', admissionNumber: '' });
@@ -518,8 +519,18 @@ export default function SafaPanel() {
   const handleAddProgram = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let finalDate = newProgram.date;
+      if (newProgram.useHijri) {
+        finalDate = getGregorianDate(newProgram.hijriYear, newProgram.hijriMonth, newProgram.hijriDay);
+      }
+      
       const docRef = await addDoc(collection(db, 'programs'), {
-        ...newProgram,
+        title: newProgram.title,
+        date: finalDate,
+        description: newProgram.description,
+        location: newProgram.location,
+        clubId: newProgram.clubId === 'other' ? null : newProgram.clubId,
+        otherClubName: newProgram.clubId === 'other' ? newProgram.otherClubName : null,
         addedBy: profile?.uid,
         timestamp: serverTimestamp()
       });
@@ -527,15 +538,21 @@ export default function SafaPanel() {
       // Update local state
       const addedProgram: Program = {
         id: docRef.id,
-        ...newProgram,
+        title: newProgram.title,
+        date: finalDate,
+        description: newProgram.description,
+        location: newProgram.location,
+        clubId: newProgram.clubId === 'other' ? null : newProgram.clubId,
+        otherClubName: newProgram.clubId === 'other' ? newProgram.otherClubName : null,
         addedBy: profile?.uid || '',
         timestamp: new Date()
       };
       setPrograms(prev => [addedProgram, ...prev].slice(0, 50));
 
       setStatus({ type: 'success', msg: 'Program added successfully!' });
-      setNewProgram({ title: '', date: '', description: '' });
+      setNewProgram({ title: '', date: '', description: '', location: '', clubId: '', otherClubName: '', useHijri: false, hijriYear: '', hijriMonth: '', hijriDay: '' });
     } catch (error) {
+      console.error(error);
       setStatus({ type: 'error', msg: 'Failed to add program.' });
     }
   };
@@ -625,14 +642,50 @@ export default function SafaPanel() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Date</label>
-                <input 
-                  type="date" required
-                  value={newProgram.date}
-                  onChange={e => setNewProgram({...newProgram, date: e.target.value})}
+                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Club (Optional)</label>
+                <select 
+                  value={newProgram.clubId}
+                  onChange={e => setNewProgram({...newProgram, clubId: e.target.value})}
                   className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
+                >
+                  <option value="">Select a Club</option>
+                  {clubs.map(club => <option key={club.id} value={club.id}>{club.name}</option>)}
+                  <option value="other">Other</option>
+                </select>
+                {newProgram.clubId === 'other' && (
+                  <input 
+                    type="text" placeholder="Club Name" required
+                    value={newProgram.otherClubName}
+                    onChange={e => setNewProgram({...newProgram, otherClubName: e.target.value})}
+                    className="w-full px-4 py-2 mt-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                )}
               </div>
+              <div className="flex items-center gap-2 mb-2">
+                <input 
+                  type="checkbox"
+                  checked={newProgram.useHijri}
+                  onChange={e => setNewProgram({...newProgram, useHijri: e.target.checked})}
+                />
+                <label className="text-xs font-bold text-stone-500 uppercase">Use Hijri Date</label>
+              </div>
+              {newProgram.useHijri ? (
+                <div className="flex gap-2">
+                  <input type="text" placeholder="YYYY" value={newProgram.hijriYear} onChange={e => setNewProgram({...newProgram, hijriYear: e.target.value})} className="w-1/3 px-4 py-2 rounded-xl border border-stone-200" />
+                  <input type="text" placeholder="MM" value={newProgram.hijriMonth} onChange={e => setNewProgram({...newProgram, hijriMonth: e.target.value})} className="w-1/3 px-4 py-2 rounded-xl border border-stone-200" />
+                  <input type="text" placeholder="DD" value={newProgram.hijriDay} onChange={e => setNewProgram({...newProgram, hijriDay: e.target.value})} className="w-1/3 px-4 py-2 rounded-xl border border-stone-200" />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Date</label>
+                  <input 
+                    type="date" required={!newProgram.useHijri}
+                    value={newProgram.date}
+                    onChange={e => setNewProgram({...newProgram, date: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-stone-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Description</label>
                 <textarea 

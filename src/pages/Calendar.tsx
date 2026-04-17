@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Program } from '../types';
+import { Program, Club } from '../types';
 import { Calendar as CalendarIcon, Clock, MapPin, ChevronRight, ChevronLeft, Filter } from 'lucide-react';
 import { Card } from '../components/Card';
 import { useAuth } from '../AuthContext';
@@ -15,11 +15,20 @@ import {
 
 export default function Calendar() {
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
   const [loading, setLoading] = useState(true);
   const { isAdmin } = useAuth();
   
   const [currentDate, setCurrentDate] = useState(new Date());
-  
+
+  // Define colors for clubs
+  const clubColors = ['bg-blue-200', 'bg-green-200', 'bg-red-200', 'bg-orange-200', 'bg-purple-200', 'bg-teal-200', 'bg-cyan-200', 'bg-lime-200'];
+  const getClubColor = (clubId?: string) => {
+    if (!clubId) return 'bg-pink-200';
+    const index = clubs.findIndex(c => c.id === clubId);
+    return index !== -1 ? clubColors[index % clubColors.length] : 'bg-pink-200';
+  };
+
   // Filter programs based on visibility rules
   const visiblePrograms = useMemo(() => {
     const now = startOfDay(new Date());
@@ -35,9 +44,12 @@ export default function Calendar() {
     const fetchPrograms = async () => {
       try {
         setLoading(true);
-        const q = query(collection(db, 'programs'), orderBy('date', 'asc'));
-        const snapshot = await getDocs(q);
-        setPrograms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
+        const [programsSnap, clubsSnap] = await Promise.all([
+          getDocs(query(collection(db, 'programs'), orderBy('date', 'asc'))),
+          getDocs(collection(db, 'clubs'))
+        ]);
+        setPrograms(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
+        setClubs(clubsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
       } catch (error) {
         console.error("Calendar fetch error:", error);
       } finally {
@@ -96,7 +108,7 @@ export default function Calendar() {
             return (
               <div 
                 key={idx}
-                className={`relative min-h-[80px] p-2 border rounded-xl ${!isSameMonth(day, monthStart) ? 'bg-stone-50 text-stone-300' : 'bg-white text-stone-900'} ${isToday(day) ? 'border-emerald-500' : 'border-stone-100'}`}
+                className={`relative min-h-[80px] p-2 border rounded-xl ${!isSameMonth(day, monthStart) ? 'bg-stone-50 text-stone-300' : isToday(day) ? 'bg-yellow-200 border-emerald-500' : dayPrograms.length > 0 ? `${getClubColor(dayPrograms[0].clubId)} border-transparent` : 'bg-white border-stone-100'}`}
               >
                 <div className={`text-sm font-bold ${isToday(day) ? 'text-emerald-600' : ''}`}>
                   {format(day, 'd')}
@@ -106,7 +118,7 @@ export default function Calendar() {
                 </div>
                 {dayPrograms.slice(0, 2).map(p => (
                   <div key={p.id} className="text-[9px] truncate bg-emerald-100 text-emerald-800 p-0.5 rounded mt-1 font-bold">
-                    {p.title}
+                    {p.title} {p.location && `(${p.location})`}
                   </div>
                 ))}
               </div>
@@ -126,6 +138,7 @@ export default function Calendar() {
             </div>
             <div className="flex-1">
               <h4 className="text-lg font-bold text-stone-900">{program.title}</h4>
+              {program.location && <p className="text-emerald-700 text-xs font-bold mt-1">📍 {program.location}</p>}
               <p className="text-stone-500 text-sm mt-1">{program.description || 'Join us for this exciting program.'}</p>
             </div>
           </Card>
