@@ -4,14 +4,29 @@ import { db } from '../firebase';
 import { Program } from '../types';
 import { Calendar as CalendarIcon, Clock, MapPin, ChevronRight, ChevronLeft, Filter } from 'lucide-react';
 import { Card } from '../components/Card';
+import { useAuth } from '../AuthContext';
+import { 
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, 
+  eachDayOfInterval, format, isSameMonth, isSameDay, 
+  addMonths, subMonths, isToday, isBefore, startOfDay
+} from 'date-fns';
 
 export default function Calendar() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
+  const { isAdmin } = useAuth();
   
-  // Filter states
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Filter programs based on visibility rules
+  const visiblePrograms = useMemo(() => {
+    const now = startOfDay(new Date());
+    return programs.filter(p => {
+      if (isAdmin) return true;
+      return !isBefore(new Date(p.date), now); // Future or today
+    });
+  }, [programs, isAdmin]);
+  
   const [eventType, setEventType] = useState<string>('all');
 
   useEffect(() => {
@@ -30,28 +45,17 @@ export default function Calendar() {
     fetchPrograms();
   }, []);
 
-  const eventTypes = useMemo(() => {
-    const types = new Set(programs.map(p => p.type || 'General'));
-    return ['all', ...Array.from(types)];
-  }, [programs]);
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(monthStart);
+  const startDate = startOfWeek(monthStart);
+  const endDate = endOfWeek(monthEnd);
 
-  const filteredPrograms = useMemo(() => {
-    return programs.filter(program => {
-      const date = new Date(program.date);
-      const matchesDate = date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
-      const matchesType = eventType === 'all' || (program.type || 'General') === eventType;
-      return matchesDate && matchesType;
-    });
-  }, [programs, selectedMonth, selectedYear, eventType]);
+  const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  const changeMonth = (delta: number) => {
-    let newMonth = selectedMonth + delta;
-    let newYear = selectedYear;
-    if (newMonth > 11) { newMonth = 0; newYear++; }
-    else if (newMonth < 0) { newMonth = 11; newYear--; }
-    setSelectedMonth(newMonth);
-    setSelectedYear(newYear);
-  };
+  const programsForMonth = useMemo(() => {
+    return visiblePrograms.filter(p => isSameMonth(new Date(p.date), currentDate));
+  }, [visiblePrograms, currentDate]);
 
   if (loading) return <div className="animate-pulse space-y-8">
     <div className="h-24 bg-stone-100 rounded-2xl"></div>
@@ -63,58 +67,67 @@ export default function Calendar() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-stone-900">Skill Club Calendar</h2>
-          <p className="text-stone-500">Stay updated with the latest events and programs.</p>
+          <p className="text-stone-500">Manage and view programs schedule.</p>
         </div>
         
         <div className="flex items-center gap-2 bg-stone-100 p-2 rounded-2xl">
-          <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-white rounded-xl"><ChevronLeft size={20}/></button>
+          <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-white rounded-xl"><ChevronLeft size={20}/></button>
           <span className="font-bold text-stone-800 min-w-[120px] text-center">
-            {new Date(selectedYear, selectedMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            {format(currentDate, 'MMMM yyyy')}
           </span>
-          <button onClick={() => changeMonth(1)} className="p-2 hover:bg-white rounded-xl"><ChevronRight size={20}/></button>
+          <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-white rounded-xl"><ChevronRight size={20}/></button>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-stone-100 shadow-sm">
-        <Filter className="text-stone-400" size={20} />
-        <select 
-          value={eventType} 
-          onChange={(e) => setEventType(e.target.value)}
-          className="bg-stone-50 border-none rounded-xl p-2 text-sm font-bold text-stone-700 focus:ring-0"
-        >
-          {eventTypes.map(type => <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>)}
-        </select>
-      </div>
-
-      {filteredPrograms.length > 0 ? (
-        <div className="grid gap-4">
-          {filteredPrograms.map((program) => (
-            <Card key={program.id} className="p-6 flex flex-col sm:flex-row sm:items-center gap-6 hover:shadow-md transition-all group">
-              <div className="bg-stone-50 text-stone-800 p-4 rounded-2xl text-center min-w-[100px] group-hover:bg-emerald-50 group-hover:text-emerald-800 transition-colors">
-                <p className="text-xs font-bold uppercase tracking-widest">{new Date(program.date).toLocaleDateString('en-US', { weekday: 'short' })}</p>
-                <p className="text-3xl font-black">{new Date(program.date).getDate()}</p>
-              </div>
-              <div className="flex-1">
-                <h4 className="text-xl font-bold text-stone-900 mb-2">{program.title}</h4>
-                <p className="text-stone-500 text-sm mb-4 leading-relaxed">{program.description || 'Join us for this exciting program.'}</p>
-                <div className="flex flex-wrap gap-4 text-xs font-bold text-stone-400 uppercase tracking-wider">
-                  <div className="flex items-center gap-1.5">
-                    <Clock size={14} /> <span>{program.time || 'TBA'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <MapPin size={14} /> <span>{program.location || 'College Campus'}</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
+      {/* Grid Calendar */}
+      <Card className="p-6">
+        <div className="grid grid-cols-7 gap-1 text-center mb-2">
+          {weekDays.map(day => (
+            <div key={day} className="text-xs font-black text-stone-400 uppercase tracking-widest py-2">
+              {day}
+            </div>
           ))}
         </div>
-      ) : (
-        <div className="bg-stone-50 border-2 border-dashed border-stone-200 rounded-3xl p-20 text-center">
-          <CalendarIcon className="mx-auto text-stone-300 mb-4" size={48} />
-          <p className="text-stone-500 font-medium">No programs scheduled for this selection.</p>
+        <div className="grid grid-cols-7 gap-1">
+          {calendarDays.map((day, idx) => {
+            const dayPrograms = visiblePrograms.filter(p => isSameDay(new Date(p.date), day));
+            return (
+              <div 
+                key={idx}
+                className={`min-h-[80px] p-2 border rounded-xl ${!isSameMonth(day, monthStart) ? 'bg-stone-50 text-stone-300' : 'bg-white text-stone-900'} ${isToday(day) ? 'border-emerald-500' : 'border-stone-100'}`}
+              >
+                <div className={`text-sm font-bold ${isToday(day) ? 'text-emerald-600' : ''}`}>
+                  {format(day, 'd')}
+                </div>
+                {dayPrograms.slice(0, 2).map(p => (
+                  <div key={p.id} className="text-[9px] truncate bg-emerald-100 text-emerald-800 p-0.5 rounded mt-1 font-bold">
+                    {p.title}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
-      )}
+      </Card>
+
+      {/* Program List */}
+      <h3 className="text-xl font-black text-stone-900 mt-8">Programs this Month</h3>
+      <div className="grid gap-4">
+        {programsForMonth.length > 0 ? programsForMonth.map((program) => (
+          <Card key={program.id} className="p-6 flex flex-col sm:flex-row sm:items-center gap-6 hover:shadow-md transition-all">
+            <div className="bg-stone-50 text-stone-800 p-4 rounded-2xl text-center min-w-[100px]">
+              <p className="text-xs font-bold uppercase tracking-widest">{format(new Date(program.date), 'EEE')}</p>
+              <p className="text-3xl font-black">{format(new Date(program.date), 'd')}</p>
+            </div>
+            <div className="flex-1">
+              <h4 className="text-lg font-bold text-stone-900">{program.title}</h4>
+              <p className="text-stone-500 text-sm mt-1">{program.description || 'Join us for this exciting program.'}</p>
+            </div>
+          </Card>
+        )) : (
+          <div className="text-center py-10 text-stone-400 italic">No programs scheduled for this month.</div>
+        )}
+      </div>
     </div>
   );
 }

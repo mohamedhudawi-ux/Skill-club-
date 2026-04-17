@@ -197,22 +197,46 @@ export function AdminSubmissions() {
                   <p className="text-stone-600 text-sm whitespace-pre-wrap">{sub.description}</p>
                   
                   {sub.fileUrl && (
-                    <div className="flex items-center gap-4">
-                      <a 
-                        href={sub.fileUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700"
-                      >
-                        <ExternalLink size={16} /> View Attached File
-                      </a>
-                      <a 
-                        href={sub.fileUrl} 
-                        download
-                        className="inline-flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-stone-700"
-                      >
-                        <Download size={16} /> Download
-                      </a>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <a 
+                          href={sub.fileUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700"
+                        >
+                          <ExternalLink size={16} /> View Attached File
+                        </a>
+                        <a 
+                          href={sub.fileUrl} 
+                          download
+                          className="inline-flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-stone-700"
+                        >
+                          <Download size={16} /> Download
+                        </a>
+                      </div>
+
+                      {/* Inline Preview */}
+                      <div className="border border-stone-100 rounded-xl overflow-hidden bg-stone-50">
+                        {sub.fileUrl.toLowerCase().includes('.pdf') || sub.fileUrl.toLowerCase().includes('pdf') ? (
+                          <div className="aspect-[4/3] w-full">
+                            <iframe 
+                              src={`${sub.fileUrl}#view=FitH`}
+                              className="w-full h-full border-none"
+                              title="PDF Preview"
+                            />
+                          </div>
+                        ) : (
+                          <div className="relative group">
+                            <img 
+                              src={sub.fileUrl} 
+                              alt="Submission Preview" 
+                              className="max-h-[400px] w-auto mx-auto object-contain rounded-lg"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                   

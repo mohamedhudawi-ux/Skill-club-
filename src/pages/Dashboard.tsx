@@ -20,7 +20,7 @@ import { AdminDashboard } from '../components/AdminDashboard';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { safeToDate } from '../utils/date';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -32,6 +32,12 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [accessAllowed, setAccessAllowed] = useState(true);
+  const [showAnimation, setShowAnimation] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowAnimation(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (isStudent && profile?.uid) {
@@ -225,6 +231,33 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      <AnimatePresence>
+        {showAnimation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed inset-0 z-[100] bg-stone-900 flex flex-col items-center justify-center p-6 text-center"
+          >
+            <motion.h1 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5, duration: 0.8 }}
+              className="text-5xl md:text-7xl font-black text-emerald-400 mb-4"
+            >
+              Skill Club
+            </motion.h1>
+            <motion.h2 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 1, duration: 0.8 }}
+              className="text-2xl md:text-4xl font-bold text-white"
+            >
+              Darul Huda Punganur
+            </motion.h2>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <BrandingHeader />
 
       {/* Student Info Header */}

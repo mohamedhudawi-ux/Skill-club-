@@ -34,8 +34,19 @@ export function SafaDashboard() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [currentBearerIndex, setCurrentBearerIndex] = useState(0);
 
-  const isSafaAdmin = user?.email === 'safa@skill.edu';
+  const isSafaAdmin = user?.email === 'safa@skill.edu';                
+                                                                      
+  useEffect(() => {                                                    
+    const unsub = onSnapshot(collection(db, 'treasury'), (snapshot) => {
+      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+    });                                                                
+    return unsub;                                                      
+  }, []);                                                              
 
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);                
+  const balance = totalIncome - totalExpense;                          
+                                                                      
   useEffect(() => {
     if (officeBearers.length > 1) {
       const interval = setInterval(() => {
@@ -75,9 +86,9 @@ export function SafaDashboard() {
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubs')));
 
       // Transactions
-      unsubscribers.push(onSnapshot(query(collection(db, 'transactions'), orderBy('timestamp', 'desc'), limit(20)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'treasury'), orderBy('date', 'desc'), limit(20)), (snap) => {
         setTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'transactions')));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'treasury')));
     };
 
     setupListeners();
@@ -139,9 +150,12 @@ export function SafaDashboard() {
     }
   };
 
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-  const balance = totalIncome - totalExpense;
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'treasury'), (snapshot) => {
+      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+    });
+    return unsub;
+  }, []);
 
   const stats = [
     { label: 'Total Programs', value: recentEvents.length, icon: Calendar, color: 'text-emerald-600', bg: 'bg-emerald-50' },

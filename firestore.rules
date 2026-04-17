@@ -36,8 +36,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        hasRole('admin') || 
-        request.auth.token.email == "mdthaha213@gmail.com"
+        request.auth.token.email == "mdthaha213@gmail.com" ||
+        hasRole('admin')
       );
     }
 
@@ -154,7 +154,7 @@ service cloud.firestore {
     match /resources/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
 
     // Transactions
-    match /transactions/{transactionId} {
+    match /treasury/{transactionId} {
       allow read: if isSafa() || isAdmin();
       allow create, update, delete: if isSafa() || isAdmin();
     }

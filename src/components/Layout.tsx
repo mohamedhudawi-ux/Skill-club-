@@ -18,7 +18,6 @@ import {
   Instagram,
   Mail,
   Send,
-  Wallet
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useSettings } from '../SettingsContext';
@@ -59,7 +58,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, group: 'Main' },
       { name: 'My Profile', href: '/profile', icon: Users, group: 'Main' },
       { name: 'Safa Panel', href: '/safa', icon: Bell, group: 'Media' },
-      { name: 'Treasurer Panel', href: '/safa?tab=treasurer', icon: Wallet, group: 'Finance' },
       { name: 'Gallery', href: '/gallery', icon: ImageIcon, group: 'Media' }
     ];
   } else {
@@ -86,8 +84,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
     if (isSafa || isAdmin) {
       navigation.push(
-        { name: 'Safa Panel', href: '/safa', icon: Bell, group: 'Media' },
-        { name: 'Treasurer Panel', href: '/safa?tab=treasurer', icon: Wallet, group: 'Finance' }
+        { name: 'Safa Panel', href: '/safa', icon: Bell, group: 'Media' }
       );
     }
     if (isStaff || isAdmin) {

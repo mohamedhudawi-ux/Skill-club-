@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, updateDoc, setDoc, where, getDocs, limit, getDoc, startAfter, orderBy, addDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, updateDoc, setDoc, where, getDocs, limit, getDoc, startAfter, orderBy, addDoc, writeBatch, documentId } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import firebaseConfig from '../../../firebase-applet-config.json';
 import { db } from '../../firebase';
 import { Student } from '../../types';
-import { CLASS_LIST } from '../../constants';
+import { CLASS_LIST, normalizeClass } from '../../constants';
 import { Trash2, Edit2, X, Plus, Upload, Download, Users, Key, Search, ExternalLink } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { Card } from '../../components/Card';
@@ -39,6 +39,8 @@ export default function StudentManagementPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkClass, setBulkClass] = useState('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [bulkClassConfirm, setBulkClassConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleSelectAll = () => {
@@ -61,22 +63,83 @@ export default function StudentManagementPage() {
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} selected students?`)) return;
-
+    setBulkDeleteConfirm(false);
     setIsBulkUpdating(true);
+    setStatus({ type: 'success', msg: `Deleting ${selectedIds.size} students...` });
+
     try {
+      const uidsToDelete: string[] = [];
+      const admissionNumbers: string[] = [];
       const batch = writeBatch(db);
-      selectedIds.forEach(id => {
-        batch.delete(doc(db, 'students', id));
-      });
-      await batch.commit();
       
-      setStatus({ type: 'success', msg: `Successfully deleted ${selectedIds.size} students.` });
+      // 1. Get admission numbers for all selected IDs from Firestore
+      const idArray = Array.from(selectedIds);
+      console.log('Bulk delete IDs:', idArray);
+
+      for (let i = 0; i < idArray.length; i += 30) {
+        const chunk = idArray.slice(i, i + 30);
+        const studentsQuery = query(collection(db, 'students'), where(documentId(), 'in', chunk));
+        const studentDocs = await getDocs(studentsQuery);
+        
+        console.log(`Found ${studentDocs.size} student docs for chunk ${i/30 + 1}`);
+        
+        studentDocs.forEach(doc => {
+          const data = doc.data();
+          if (data.admissionNumber) {
+            admissionNumbers.push(data.admissionNumber);
+          }
+          batch.delete(doc.ref);
+        });
+      }
+      
+      // 2. Find associated user documents by admissionNumber
+      if (admissionNumbers.length > 0) {
+        console.log('Finding user docs for admission numbers:', admissionNumbers);
+        for (let i = 0; i < admissionNumbers.length; i += 30) {
+          const chunk = admissionNumbers.slice(i, i + 30);
+          const usersQuery = query(collection(db, 'users'), where('admissionNumber', 'in', chunk));
+          const userDocs = await getDocs(usersQuery);
+          
+          console.log(`Found ${userDocs.size} user docs for chunk ${i/30 + 1}`);
+          
+          userDocs.forEach(userDoc => {
+            uidsToDelete.push(userDoc.id);
+            batch.delete(doc(db, 'users', userDoc.id));
+          });
+        }
+      }
+      
+      // 3. Commit Firestore deletions
+      await batch.commit();
+      console.log('Firestore batch commit successful');
+      
+      // 4. Delete Auth accounts via backend API
+      if (uidsToDelete.length > 0) {
+        console.log('Deleting Auth accounts for UIDs:', uidsToDelete);
+        try {
+          const response = await fetch('/api/admin/delete-users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uids: uidsToDelete })
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.warn('Firestore documents deleted, but failed to delete some Auth accounts:', errorData);
+          } else {
+            console.log('Auth accounts deleted successfully');
+          }
+        } catch (apiErr) {
+          console.error('Error calling delete-users API:', apiErr);
+        }
+      }
+      
+      setStatus({ type: 'success', msg: `Successfully deleted ${selectedIds.size} students and their accounts.` });
       setSelectedIds(new Set());
       fetchStudents(false);
     } catch (err: any) {
       console.error('Error bulk deleting:', err);
-      setStatus({ type: 'error', msg: 'Failed to delete students: ' + err.message });
+      setStatus({ type: 'error', msg: 'Failed to delete students: ' + (err.message || 'Unknown error') });
     } finally {
       setIsBulkUpdating(false);
     }
@@ -84,14 +147,43 @@ export default function StudentManagementPage() {
 
   const handleBulkClassChange = async () => {
     if (selectedIds.size === 0 || !bulkClass) return;
-    if (!window.confirm(`Are you sure you want to change the class to ${bulkClass} for ${selectedIds.size} selected students?`)) return;
-
+    setBulkClassConfirm(false);
     setIsBulkUpdating(true);
+    setStatus({ type: 'success', msg: `Updating class to ${bulkClass} for ${selectedIds.size} students...` });
+
     try {
       const batch = writeBatch(db);
-      selectedIds.forEach(id => {
-        batch.update(doc(db, 'students', id), { class: bulkClass });
-      });
+      const admissionNumbers: string[] = [];
+      
+      // 1. Update students collection and collect admission numbers
+      const idArray = Array.from(selectedIds);
+      for (let i = 0; i < idArray.length; i += 30) {
+        const chunk = idArray.slice(i, i + 30);
+        const studentsQuery = query(collection(db, 'students'), where(documentId(), 'in', chunk));
+        const studentDocs = await getDocs(studentsQuery);
+        
+        studentDocs.forEach(doc => {
+          const data = doc.data();
+          if (data.admissionNumber) {
+            admissionNumbers.push(data.admissionNumber);
+          }
+          batch.update(doc.ref, { class: bulkClass });
+        });
+      }
+
+      // 2. Update users collection if they exist
+      if (admissionNumbers.length > 0) {
+        for (let i = 0; i < admissionNumbers.length; i += 30) {
+          const chunk = admissionNumbers.slice(i, i + 30);
+          const usersQuery = query(collection(db, 'users'), where('admissionNumber', 'in', chunk));
+          const userDocs = await getDocs(usersQuery);
+          
+          userDocs.forEach(userDoc => {
+            batch.update(userDoc.ref, { class: bulkClass });
+          });
+        }
+      }
+
       await batch.commit();
 
       setStatus({ type: 'success', msg: `Successfully updated class for ${selectedIds.size} students.` });
@@ -100,7 +192,7 @@ export default function StudentManagementPage() {
       fetchStudents(false);
     } catch (err: any) {
       console.error('Error bulk updating class:', err);
-      setStatus({ type: 'error', msg: 'Failed to update class: ' + err.message });
+      setStatus({ type: 'error', msg: 'Failed to update class: ' + (err.message || 'Unknown error') });
     } finally {
       setIsBulkUpdating(false);
     }
@@ -211,7 +303,7 @@ export default function StudentManagementPage() {
               id: data.admissionNumber,
               name: String(data.name || '').toUpperCase(),
               admissionNumber: data.admissionNumber,
-              class: data.class,
+              class: normalizeClass(data.class),
               fatherName: data.fatherName || '',
               dob: data.dob || '',
               address: data.address || '',
@@ -236,7 +328,7 @@ export default function StudentManagementPage() {
           id: String(data.admissionNumber || data.AdmissionNumber),
           name: String(data.name || data.Name || '').toUpperCase(),
           admissionNumber: String(data.admissionNumber || data.AdmissionNumber),
-          class: String(data.class || data.Class || ''),
+          class: normalizeClass(String(data.class || data.Class || '')),
           fatherName: String(data.fatherName || data.FatherName || ''),
           dob: String(data.dob || data.DOB || ''),
           address: String(data.address || data.Address || ''),
@@ -288,7 +380,7 @@ export default function StudentManagementPage() {
                   id: admissionNumber,
                   name: name.toUpperCase(),
                   admissionNumber: admissionNumber,
-                  class: studentClass,
+                  class: normalizeClass(studentClass),
                   fatherName: '',
                   dob: '',
                   address: '',
@@ -361,9 +453,10 @@ export default function StudentManagementPage() {
     try {
       const studentRef = doc(db, 'students', editingStudent.id!);
       const normalizedName = (editingStudent.name || '').toUpperCase();
+      const normalizedClass = normalizeClass(editingStudent.class || '');
       await updateDoc(studentRef, {
         name: normalizedName,
-        class: editingStudent.class || '',
+        class: normalizedClass,
         photoURL: editingStudent.photoURL || '',
         phone: editingStudent.phone || '',
         email: editingStudent.email || '',
@@ -380,6 +473,7 @@ export default function StudentManagementPage() {
           const userRef = doc(db, 'users', userDocs.docs[0].id);
           await updateDoc(userRef, {
             displayName: normalizedName,
+            class: normalizedClass,
             photoURL: editingStudent.photoURL || '',
             phone: editingStudent.phone || '',
             email: editingStudent.email || ''
@@ -488,10 +582,11 @@ export default function StudentManagementPage() {
       }
 
       const normalizedName = (name || '').toUpperCase();
+      const normalizedStudentClass = normalizeClass(studentClass);
       const studentData = {
         name: normalizedName,
         admissionNumber: admissionNumber || '',
-        class: studentClass,
+        class: normalizedStudentClass,
         fatherName,
         dob,
         address,
@@ -522,6 +617,51 @@ export default function StudentManagementPage() {
 
   const [provisionConfirm, setProvisionConfirm] = useState(false);
   const [fixNamesConfirm, setFixNamesConfirm] = useState(false);
+  const [normalizeClassesConfirm, setNormalizeClassesConfirm] = useState(false);
+
+  const handleNormalizeAllClasses = async () => {
+    setNormalizeClassesConfirm(false);
+    setLoading(true);
+    setStatus({ type: 'success', msg: 'Starting class normalization for all students...' });
+
+    try {
+      // Fetch all students
+      const studentsSnap = await getDocs(collection(db, 'students'));
+      let updatedCount = 0;
+      let skippedCount = 0;
+
+      for (const studentDoc of studentsSnap.docs) {
+        const data = studentDoc.data();
+        const currentClass = data.class || '';
+        const normalized = normalizeClass(currentClass);
+
+        if (normalized !== currentClass) {
+          // Update student doc
+          await updateDoc(studentDoc.ref, { class: normalized });
+
+          // Update user doc if exists
+          if (data.admissionNumber) {
+            const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', data.admissionNumber));
+            const userDocs = await getDocs(usersQuery);
+            if (!userDocs.empty) {
+              await updateDoc(userDocs.docs[0].ref, { class: normalized });
+            }
+          }
+          updatedCount++;
+        } else {
+          skippedCount++;
+        }
+      }
+
+      setStatus({ type: 'success', msg: `Normalization complete! Updated: ${updatedCount}, Already correct: ${skippedCount}` });
+      fetchStudents(false);
+    } catch (err: any) {
+      console.error('Failed to normalize classes:', err);
+      setStatus({ type: 'error', msg: 'Failed to normalize classes: ' + err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFixNames = async () => {
     setFixNamesConfirm(false);
@@ -850,7 +990,7 @@ export default function StudentManagementPage() {
                 variant="primary" 
                 className="py-1 px-4 text-xs"
                 disabled={!bulkClass || isBulkUpdating}
-                onClick={handleBulkClassChange}
+                onClick={() => setBulkClassConfirm(true)}
               >
                 Apply
               </Button>
@@ -860,7 +1000,7 @@ export default function StudentManagementPage() {
               variant="secondary" 
               className="bg-red-500/10 text-red-400 hover:bg-red-500/20 border-none text-xs font-bold py-2 px-4"
               disabled={isBulkUpdating}
-              onClick={handleBulkDelete}
+              onClick={() => setBulkDeleteConfirm(true)}
             >
               <Trash2 size={14} className="mr-2" />
               Delete Selected
@@ -877,7 +1017,7 @@ export default function StudentManagementPage() {
                 <input 
                   type="checkbox" 
                   className="rounded border-stone-300 text-emerald-600 focus:ring-emerald-500"
-                  checked={students.length > 0 && selectedIds.size === students.length}
+                  checked={students.length > 0 && students.every(s => selectedIds.has(s.id!))}
                   onChange={toggleSelectAll}
                 />
               </th>
@@ -1288,6 +1428,9 @@ export default function StudentManagementPage() {
         <Button variant="secondary" onClick={() => setFixNamesConfirm(true)} disabled={loading} className="flex items-center gap-2 bg-blue-100 text-blue-700 hover:bg-blue-200 border-none">
           <Edit2 size={18} /> Fix Names
         </Button>
+        <Button variant="secondary" onClick={() => setNormalizeClassesConfirm(true)} disabled={loading} className="flex items-center gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 border-none">
+          <Users size={18} /> Normalize Classes
+        </Button>
         <Button variant="secondary" onClick={() => setProvisionConfirm(true)} disabled={loading} className="flex items-center gap-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none">
           <Key size={18} /> Provision Accounts
         </Button>
@@ -1323,6 +1466,36 @@ export default function StudentManagementPage() {
         title="Fix Student Names"
         message="Are you sure you want to update the display names for the specified students to their original names?"
         confirmText="Update Names"
+        variant="info"
+      />
+
+      <ConfirmModal
+        isOpen={bulkDeleteConfirm}
+        onClose={() => setBulkDeleteConfirm(false)}
+        onConfirm={handleBulkDelete}
+        title="Bulk Delete Students"
+        message={`Are you sure you want to delete ${selectedIds.size} selected students and their associated accounts? This action cannot be undone.`}
+        confirmText="Delete Selected"
+        variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={bulkClassConfirm}
+        onClose={() => setBulkClassConfirm(false)}
+        onConfirm={handleBulkClassChange}
+        title="Bulk Change Class"
+        message={`Are you sure you want to change the class to ${bulkClass} for ${selectedIds.size} selected students?`}
+        confirmText="Apply Change"
+        variant="info"
+      />
+
+      <ConfirmModal
+        isOpen={normalizeClassesConfirm}
+        onClose={() => setNormalizeClassesConfirm(false)}
+        onConfirm={handleNormalizeAllClasses}
+        title="Normalize All Classes"
+        message="Are you sure you want to normalize classes for ALL students? This will remove sections from S3-SS2 and ensure S1-S2 have sections (defaulting to A)."
+        confirmText="Normalize All"
         variant="info"
       />
     </div>

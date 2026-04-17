@@ -160,6 +160,25 @@ async function startServer() {
     }
   });
 
+  app.post('/api/admin/delete-users', async (req, res) => {
+    const { uids } = req.body;
+    if (!Array.isArray(uids)) {
+      return res.status(400).json({ error: 'uids must be an array' });
+    }
+    try {
+      // Firebase Admin SDK supports deleting up to 1000 users at once
+      const result = await admin.auth().deleteUsers(uids);
+      res.json({ 
+        success: true, 
+        successCount: result.successCount, 
+        failureCount: result.failureCount,
+        errors: result.errors 
+      });
+    } catch (error) {
+      handleAuthError(error, res);
+    }
+  });
+
   app.post('/api/admin/delete-user', async (req, res) => {
     const { uid } = req.body;
     try {

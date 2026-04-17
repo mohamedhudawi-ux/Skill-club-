@@ -9,7 +9,6 @@ import { Calendar, Image as ImageIcon, Users, Layout, Shield, Plus, CheckCircle2
 import { ImageUpload } from '../components/ImageUpload';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import TreasurerPanel from '../components/TreasurerPanel';
 import Scoreboard from './Scoreboard';
 import { SiteContent } from '../types';
 import { safeToDate } from '../utils/date';
@@ -18,12 +17,12 @@ export default function SafaPanel() {
   const { profile, isSafa, isAdmin } = useAuth();
   const { siteContent } = useSettings();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<'programs' | 'gallery' | 'clubs' | 'boards' | 'office-bearers' | 'club-points' | 'monthly-reports' | 'treasurer' | 'scoreboard'>('programs');
+  const [activeTab, setActiveTab] = useState<'programs' | 'gallery' | 'clubs' | 'boards' | 'office-bearers' | 'club-points' | 'monthly-reports' | 'scoreboard'>('programs');
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
-    if (tab && ['programs', 'gallery', 'clubs', 'boards', 'office-bearers', 'club-points', 'monthly-reports', 'treasurer', 'scoreboard'].includes(tab)) {
+    if (tab && ['programs', 'gallery', 'clubs', 'boards', 'office-bearers', 'club-points', 'monthly-reports', 'scoreboard'].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [location.search]);
@@ -584,7 +583,6 @@ export default function SafaPanel() {
             { id: 'club-points', label: 'Club Points', icon: BarChart3 },
             { id: 'scoreboard', label: 'Scoreboard', icon: Trophy },
             { id: 'monthly-reports', label: 'Reports', icon: FileSpreadsheet },
-            { id: 'treasurer', label: 'Treasurer', icon: Wallet },
           ].map((tab) => (
             <Button
               key={tab.id}
@@ -1389,8 +1387,6 @@ export default function SafaPanel() {
           </div>
         </div>
       )}
-
-      {activeTab === 'treasurer' && <TreasurerPanel />}
 
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

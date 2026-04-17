@@ -54,10 +54,11 @@ import { AdminDashboard } from '../components/AdminDashboard';
 import { StaffDashboard } from '../components/StaffDashboard';
 import { AdminSubmissions } from '../components/AdminSubmissions';
 import { AdminGraceMarks } from '../components/AdminGraceMarks';
-import TreasurerPanel from '../components/TreasurerPanel';
 import SettingsPage from './admin/SettingsPage';
 
-type Tab = 'dashboard' | 'profile' | 'gallery' | 'clubs' | 'boards' | 'calendar' | 'users' | 'staff' | 'club-points' | 'club-members' | 'students' | 'submissions' | 'gracemarks' | 'treasury' | 'settings' | 'reports';
+
+
+type Tab = 'dashboard' | 'profile' | 'gallery' | 'clubs' | 'boards' | 'calendar' | 'users' | 'staff' | 'club-points' | 'club-members' | 'students' | 'submissions' | 'gracemarks' | 'settings' | 'reports';
 
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -692,7 +693,6 @@ export default function AdminCommandCenter() {
   const renderDashboard = () => role === 'staff' ? <StaffDashboard /> : <AdminDashboard />;
   const renderSubmissions = () => <AdminSubmissions />;
   const renderGracemarks = () => <AdminGraceMarks />;
-  const renderTreasury = () => <TreasurerPanel />;
   const renderSettings = () => <SettingsPage />;
 
   const renderGallery = () => (
@@ -1623,10 +1623,9 @@ export default function AdminCommandCenter() {
     {
       title: 'Academic',
       items: [
-        ...(role === 'admin' || role === 'academic' ? [
+        ...(role === 'admin' || role === 'academic' || role === 'safa' || role === 'treasurer' ? [
           { id: 'submissions', label: 'Submissions', icon: FileText },
           { id: 'gracemarks', label: 'Grace Marks', icon: Award },
-          { id: 'treasury', label: 'Treasury Panel', icon: Wallet },
           { id: 'reports', label: 'Reports', icon: ClipboardList },
         ] : []),
       ]
@@ -1732,7 +1731,6 @@ export default function AdminCommandCenter() {
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'submissions' && renderSubmissions()}
           {activeTab === 'gracemarks' && renderGracemarks()}
-          {activeTab === 'treasury' && renderTreasury()}
           {activeTab === 'students' && renderStudents()}
           {activeTab === 'staff' && renderStaff()}
           {activeTab === 'users' && renderUsers()}

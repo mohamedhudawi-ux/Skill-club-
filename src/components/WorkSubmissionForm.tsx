@@ -180,9 +180,9 @@ export function WorkSubmissionForm({ student, initialData, onSuccess, onCancel }
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-xs font-bold text-stone-500 uppercase mb-2">Attach Proof (PDF/Image)</label>
+            <label className="block text-xs font-bold text-stone-500 uppercase mb-2">Attach Proof (PDF/Image) - Optional</label>
             <FileUpload 
-              label="Upload Proof"
+              label="Upload Proof (Optional)"
               onUpload={(url) => setFormData({ ...formData, fileUrl: url })}
               className="h-32"
               accept=".pdf,image/*"
