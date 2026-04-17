@@ -24,12 +24,17 @@ function getAdjustedMoment(customOffset?: number) {
   return now.add(offset, 'days');
 }
 
-export function getHijriDate(offset?: number) {
-  const date = getAdjustedMoment(offset).format('iDD');
+export function getHijriDate(date: Date, offset?: number) {
+  const m = moment(date);
+  // Re-implement adjustment logic here just for the date
+  // Since we need to know if the sunset transition happened, this gets tricky with just a Date object
+  // Let's keep it simple: assume moment-hijri handles the conversion of the passed date
+  const offsetValue = offset !== undefined ? offset : DEFAULT_HIJRI_OFFSET;
+  const hijriDate = m.add(offsetValue, 'days').format('iDD');
   
   // Convert Western numerals to Arabic numerals
   const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-  return date.split('').map(digit => {
+  return hijriDate.split('').map(digit => {
     const num = parseInt(digit);
     return isNaN(num) ? digit : arabicNumerals[num];
   }).join('');

@@ -96,13 +96,13 @@ export default function Calendar() {
             return (
               <div 
                 key={idx}
-                className={`min-h-[80px] p-2 border rounded-xl ${!isSameMonth(day, monthStart) ? 'bg-stone-50 text-stone-300' : 'bg-white text-stone-900'} ${isToday(day) ? 'border-emerald-500' : 'border-stone-100'}`}
+                className={`relative min-h-[80px] p-2 border rounded-xl ${!isSameMonth(day, monthStart) ? 'bg-stone-50 text-stone-300' : 'bg-white text-stone-900'} ${isToday(day) ? 'border-emerald-500' : 'border-stone-100'}`}
               >
                 <div className={`text-sm font-bold ${isToday(day) ? 'text-emerald-600' : ''}`}>
                   {format(day, 'd')}
                 </div>
-                <div className="text-[10px] text-emerald-600 font-arabic">
-                  {getHijriDate(0)}
+                <div className="absolute bottom-1 right-2 text-[10px] text-emerald-600 font-arabic">
+                  {getHijriDate(day, 0)}
                 </div>
                 {dayPrograms.slice(0, 2).map(p => (
                   <div key={p.id} className="text-[9px] truncate bg-emerald-100 text-emerald-800 p-0.5 rounded mt-1 font-bold">
