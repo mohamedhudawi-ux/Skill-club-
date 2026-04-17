@@ -25,7 +25,14 @@ function getAdjustedMoment(customOffset?: number) {
 }
 
 export function getHijriDate(offset?: number) {
-  return getAdjustedMoment(offset).format('iYYYY/iMM/iDD');
+  const date = getAdjustedMoment(offset).format('iDD');
+  
+  // Convert Western numerals to Arabic numerals
+  const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return date.split('').map(digit => {
+    const num = parseInt(digit);
+    return isNaN(num) ? digit : arabicNumerals[num];
+  }).join('');
 }
 
 export function getHijriMonthName(offset?: number) {

@@ -5,10 +5,12 @@ import { Program } from '../types';
 import { Calendar as CalendarIcon, Clock, MapPin, ChevronRight, ChevronLeft, Filter } from 'lucide-react';
 import { Card } from '../components/Card';
 import { useAuth } from '../AuthContext';
+import { getHijriDate } from '../utils/hijri';
 import { 
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, 
   eachDayOfInterval, format, isSameMonth, isSameDay, 
-  addMonths, subMonths, isToday, isBefore, startOfDay
+  addMonths, subMonths, isToday, isBefore, startOfDay,
+  addDays
 } from 'date-fns';
 
 export default function Calendar() {
@@ -98,6 +100,9 @@ export default function Calendar() {
               >
                 <div className={`text-sm font-bold ${isToday(day) ? 'text-emerald-600' : ''}`}>
                   {format(day, 'd')}
+                </div>
+                <div className="text-[10px] text-emerald-600 font-arabic">
+                  {getHijriDate(0)}
                 </div>
                 {dayPrograms.slice(0, 2).map(p => (
                   <div key={p.id} className="text-[9px] truncate bg-emerald-100 text-emerald-800 p-0.5 rounded mt-1 font-bold">
