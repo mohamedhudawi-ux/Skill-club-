@@ -38,6 +38,7 @@ export default function SafaPanel() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [clubPointEntries, setClubPointEntries] = useState<ClubPointEntry[]>([]);
   const [monthlyReports, setMonthlyReports] = useState<MonthlyReport[]>([]);
+  const [calendar, setCalendar] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -83,6 +84,11 @@ export default function SafaPanel() {
         if (activeTab === 'monthly-reports') {
           const snapshot = await getDocs(query(collection(db, 'monthlyReports'), orderBy('month', 'desc'), limit(24)));
           setMonthlyReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MonthlyReport)));
+        }
+
+        if (activeTab === 'calendar') {
+          const snapshot = await getDocs(query(collection(db, 'calendar'), orderBy('date', 'desc'), limit(50)));
+          setCalendar(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         }
       } catch (error) {
         console.error('Error fetching SafaPanel data:', error);
@@ -600,6 +606,7 @@ export default function SafaPanel() {
             { id: 'club-points', label: 'Club Points', icon: BarChart3 },
             { id: 'scoreboard', label: 'Scoreboard', icon: Trophy },
             { id: 'monthly-reports', label: 'Reports', icon: FileSpreadsheet },
+            { id: 'calendar', label: 'Calendar', icon: Calendar },
           ].map((tab) => (
             <Button
               key={tab.id}
@@ -721,6 +728,73 @@ export default function SafaPanel() {
                 <p className="text-xs text-stone-400 mt-1">{event.date}</p>
                 <p className="text-sm text-stone-600 mt-2 line-clamp-2">{event.description}</p>
               </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'calendar' && (
+        <div className="space-y-8">
+          <Card className="p-8 max-w-2xl mx-auto">
+            <h3 className="text-xl font-bold text-stone-900 mb-6 flex items-center gap-2">
+              <Plus className="text-emerald-600" /> Add Calendar Event
+            </h3>
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const title = formData.get('title') as string;
+                const date = formData.get('date') as string;
+                const type = formData.get('type') as string;
+                try {
+                  setLoading(true);
+                  await addDoc(collection(db, 'calendar'), { title, date, type, createdAt: serverTimestamp() });
+                  setStatus({ type: 'success', msg: 'Event added to calendar!' });
+                  (e.target as HTMLFormElement).reset();
+                } catch (error) {
+                  setStatus({ type: 'error', msg: 'Failed to add event.' });
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="grid grid-cols-1 md:grid-cols-3 gap-4"
+            >
+              <input name="title" placeholder="Event Title" className="px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-emerald-500" required />
+              <input name="date" type="date" className="px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-emerald-500" required />
+              <select name="type" className="px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-emerald-500 bg-white" required>
+                <option value="exam">Examination</option>
+                <option value="holiday">Holiday</option>
+                <option value="event">Event</option>
+                <option value="other">Other</option>
+              </select>
+              <Button type="submit" className="md:col-span-3">Add Event</Button>
+            </form>
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {calendar.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(event => (
+              <div key={event.id} className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-stone-100 hover:shadow-md transition-all group">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  event.type === 'exam' ? 'bg-rose-100 text-rose-600' :
+                  event.type === 'holiday' ? 'bg-emerald-100 text-emerald-600' :
+                  'bg-blue-100 text-blue-600'
+                }`}>
+                  <Calendar size={24} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-stone-900 truncate">{event.title}</h4>
+                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">{new Date(event.date).toLocaleDateString()}</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-60">{event.type}</p>
+                </div>
+                <Button 
+                  variant="danger" 
+                  size="sm"
+                  onClick={() => setConfirmDelete({ collection: 'calendar', id: event.id! })}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
             ))}
           </div>
         </div>
