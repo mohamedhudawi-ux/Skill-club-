@@ -18,12 +18,12 @@ export default function SafaPanel() {
   const { profile, isSafa, isAdmin } = useAuth();
   const { siteContent } = useSettings();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<'programs' | 'gallery' | 'clubs' | 'boards' | 'office-bearers' | 'club-points' | 'monthly-reports' | 'scoreboard'>('programs');
+  const [activeTab, setActiveTab] = useState<'programs' | 'gallery' | 'clubs' | 'boards' | 'office-bearers' | 'club-points' | 'monthly-reports' | 'scoreboard' | 'calendar'>('programs');
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
-    if (tab && ['programs', 'gallery', 'clubs', 'boards', 'office-bearers', 'club-points', 'monthly-reports', 'scoreboard'].includes(tab)) {
+    if (tab && ['programs', 'gallery', 'clubs', 'boards', 'office-bearers', 'club-points', 'monthly-reports', 'scoreboard', 'calendar'].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [location.search]);
@@ -535,7 +535,7 @@ export default function SafaPanel() {
         date: finalDate,
         description: newProgram.description,
         location: newProgram.location,
-        clubId: newProgram.clubId === 'other' ? null : newProgram.clubId,
+        clubId: newProgram.clubId === 'other' ? undefined : newProgram.clubId,
         otherClubName: newProgram.clubId === 'other' ? newProgram.otherClubName : null,
         addedBy: profile?.uid,
         timestamp: serverTimestamp()
@@ -548,7 +548,7 @@ export default function SafaPanel() {
         date: finalDate,
         description: newProgram.description,
         location: newProgram.location,
-        clubId: newProgram.clubId === 'other' ? null : newProgram.clubId,
+        clubId: newProgram.clubId === 'other' ? undefined : newProgram.clubId,
         otherClubName: newProgram.clubId === 'other' ? newProgram.otherClubName : null,
         addedBy: profile?.uid || '',
         timestamp: new Date()
@@ -657,6 +657,12 @@ export default function SafaPanel() {
                 >
                   <option value="">Select a Club</option>
                   {clubs.map(club => <option key={club.id} value={club.id}>{club.name}</option>)}
+                  <optgroup label="Safa Boards">
+                    <option value="SRDB">SRDB</option>
+                    <option value="LB">LB</option>
+                    <option value="SAB">SAB</option>
+                    <option value="SAFA">SAFA</option>
+                  </optgroup>
                   <option value="other">Other</option>
                 </select>
                 {newProgram.clubId === 'other' && (
@@ -707,28 +713,149 @@ export default function SafaPanel() {
             </form>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {programs.map(event => (
-              <Card key={event.id} className="p-6 relative group">
-                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => setEditingItem({ collection: 'programs', id: event.id!, data: { title: event.title, date: event.date, description: event.description } })}
-                    className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
-                  >
-                    <FileText size={16} />
-                  </button>
-                  <button 
-                    onClick={() => setConfirmDelete({ collection: 'programs', id: event.id! })}
-                    className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+          <div className="space-y-8">
+            {clubs.map(club => {
+              const clubPrograms = programs.filter(p => p.clubId === club.id);
+              if (clubPrograms.length === 0) return null;
+              return (
+                <div key={club.id} className="space-y-4">
+                  <h4 className="font-bold text-emerald-800 flex items-center gap-2">
+                    <Users size={16} /> {club.name}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {clubPrograms.map(event => (
+                      <Card key={event.id} className="p-6 relative group">
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => setEditingItem({ collection: 'programs', id: event.id!, data: { title: event.title, date: event.date, description: event.description } })}
+                            className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
+                          >
+                            <FileText size={16} />
+                          </button>
+                          <button 
+                            onClick={() => setConfirmDelete({ collection: 'programs', id: event.id! })}
+                            className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        <h4 className="font-bold text-stone-900">{event.title}</h4>
+                        <p className="text-xs text-stone-400 mt-1">{event.date}</p>
+                        <p className="text-sm text-stone-600 mt-2 line-clamp-2">{event.description}</p>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
-                <h4 className="font-bold text-stone-900">{event.title}</h4>
-                <p className="text-xs text-stone-400 mt-1">{event.date}</p>
-                <p className="text-sm text-stone-600 mt-2 line-clamp-2">{event.description}</p>
-              </Card>
-            ))}
+              );
+            })}
+
+            {/* Extra Clubs / Boards Grouping */}
+            {['SRDB', 'LB', 'SAB', 'SAFA'].map(specialId => {
+              const specialPrograms = programs.filter(p => p.clubId === specialId);
+              if (specialPrograms.length === 0) return null;
+              return (
+                <div key={specialId} className="space-y-4">
+                  <h4 className="font-bold text-emerald-800 flex items-center gap-2">
+                    <Shield size={16} /> {specialId}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {specialPrograms.map(event => (
+                      <Card key={event.id} className="p-6 relative group">
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => setEditingItem({ collection: 'programs', id: event.id!, data: { title: event.title, date: event.date, description: event.description } })}
+                            className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
+                          >
+                            <FileText size={16} />
+                          </button>
+                          <button 
+                            onClick={() => setConfirmDelete({ collection: 'programs', id: event.id! })}
+                            className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        <h4 className="font-bold text-stone-900">{event.title}</h4>
+                        <p className="text-xs text-stone-400 mt-1">{event.date}</p>
+                        <p className="text-sm text-stone-600 mt-2 line-clamp-2">{event.description}</p>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Other Club Programs */}
+            {(() => {
+              const otherPrograms = programs.filter(p => p.otherClubName);
+              if (otherPrograms.length === 0) return null;
+              return (
+                <div className="space-y-4">
+                  <h4 className="font-bold text-emerald-800 flex items-center gap-2">
+                    <Globe size={16} /> Other Clubs
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {otherPrograms.map(event => (
+                      <Card key={event.id} className="p-6 relative group">
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => setEditingItem({ collection: 'programs', id: event.id!, data: { title: event.title, date: event.date, description: event.description } })}
+                            className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
+                          >
+                            <FileText size={16} />
+                          </button>
+                          <button 
+                            onClick={() => setConfirmDelete({ collection: 'programs', id: event.id! })}
+                            className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        <h4 className="font-bold text-stone-900 py-1">{event.title} <span className="text-[10px] text-stone-400 font-bold ml-1">({event.otherClubName})</span></h4>
+                        <p className="text-xs text-stone-400">{event.date}</p>
+                        <p className="text-sm text-stone-600 mt-2 line-clamp-2">{event.description}</p>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Uncategorized Programs */}
+            {(() => {
+              const uncategorized = programs.filter(p => !p.clubId && !p.otherClubName);
+              if (uncategorized.length === 0) return null;
+              return (
+                <div className="space-y-4">
+                  <h4 className="font-bold text-emerald-800 flex items-center gap-2">
+                    <Calendar size={16} /> General Programs
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {uncategorized.map(event => (
+                      <Card key={event.id} className="p-6 relative group">
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => setEditingItem({ collection: 'programs', id: event.id!, data: { title: event.title, date: event.date, description: event.description } })}
+                            className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
+                          >
+                            <FileText size={16} />
+                          </button>
+                          <button 
+                            onClick={() => setConfirmDelete({ collection: 'programs', id: event.id! })}
+                            className="p-2 text-stone-900 bg-stone-100 rounded-lg hover:bg-stone-200"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        <h4 className="font-bold text-stone-900">{event.title}</h4>
+                        <p className="text-xs text-stone-400 mt-1">{event.date}</p>
+                        <p className="text-sm text-stone-600 mt-2 line-clamp-2">{event.description}</p>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

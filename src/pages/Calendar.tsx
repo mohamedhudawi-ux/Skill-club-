@@ -25,6 +25,10 @@ export default function Calendar() {
   const clubColors = ['bg-blue-200', 'bg-green-200', 'bg-red-200', 'bg-orange-200', 'bg-purple-200', 'bg-teal-200', 'bg-cyan-200', 'bg-lime-200'];
   const getClubColor = (clubId?: string) => {
     if (!clubId) return 'bg-pink-200';
+    if (clubId === 'SRDB') return 'bg-amber-200';
+    if (clubId === 'LB') return 'bg-indigo-200';
+    if (clubId === 'SAB') return 'bg-rose-200';
+    if (clubId === 'SAFA') return 'bg-emerald-200';
     const index = clubs.findIndex(c => c.id === clubId);
     return index !== -1 ? clubColors[index % clubColors.length] : 'bg-pink-200';
   };
@@ -128,22 +132,110 @@ export default function Calendar() {
       </Card>
 
       {/* Program List */}
-      <h3 className="text-xl font-black text-stone-900 mt-8">Programs this Month</h3>
-      <div className="grid gap-4">
-        {programsForMonth.length > 0 ? programsForMonth.map((program) => (
-          <Card key={program.id} className="p-6 flex flex-col sm:flex-row sm:items-center gap-6 hover:shadow-md transition-all">
-            <div className="bg-stone-50 text-stone-800 p-4 rounded-2xl text-center min-w-[100px]">
-              <p className="text-xs font-bold uppercase tracking-widest">{format(new Date(program.date), 'EEE')}</p>
-              <p className="text-3xl font-black">{format(new Date(program.date), 'd')}</p>
+      <h3 className="text-xl font-black text-stone-900 mt-8">Upcoming Programs</h3>
+      <div className="space-y-8">
+        {clubs.map(club => {
+          const clubPrograms = programsForMonth.filter(p => p.clubId === club.id);
+          if (clubPrograms.length === 0) return null;
+          
+          return (
+            <div key={club.id} className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-1 h-6 rounded-full ${getClubColor(club.id)}`}></div>
+                <h4 className="text-lg font-bold text-stone-800">{club.name}</h4>
+                <span className="text-xs font-bold text-stone-400 px-2 py-0.5 bg-stone-100 rounded-full lowercase">
+                  {clubPrograms.length} {clubPrograms.length === 1 ? 'program' : 'programs'}
+                </span>
+              </div>
+              <div className="grid gap-4">
+                {clubPrograms.map((program) => (
+                  <Card key={program.id} className="p-6 flex flex-col sm:flex-row sm:items-center gap-6 hover:shadow-md transition-all border-l-4 border-l-stone-200" style={{ borderLeftColor: getClubColor(club.id).replace('bg-', '').replace('-200', '') }}>
+                    <div className="bg-stone-50 text-stone-800 p-4 rounded-2xl text-center min-w-[100px]">
+                      <p className="text-xs font-bold uppercase tracking-widest">{format(new Date(program.date), 'EEE')}</p>
+                      <p className="text-3xl font-black">{format(new Date(program.date), 'd')}</p>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-lg font-bold text-stone-900">{program.title}</h4>
+                      {program.location && <p className="text-emerald-700 text-xs font-bold mt-1">📍 {program.location}</p>}
+                      <p className="text-stone-500 text-sm mt-1">{program.description || 'Join us for this exciting program.'}</p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             </div>
-            <div className="flex-1">
-              <h4 className="text-lg font-bold text-stone-900">{program.title}</h4>
-              {program.location && <p className="text-emerald-700 text-xs font-bold mt-1">📍 {program.location}</p>}
-              <p className="text-stone-500 text-sm mt-1">{program.description || 'Join us for this exciting program.'}</p>
+          );
+        })}
+
+        {/* special Safa Boards Grouping */}
+        {['SRDB', 'LB', 'SAB', 'SAFA'].map(boardId => {
+          const boardPrograms = programsForMonth.filter(p => p.clubId === boardId);
+          if (boardPrograms.length === 0) return null;
+          
+          return (
+            <div key={boardId} className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-1 h-6 rounded-full ${getClubColor(boardId)}`}></div>
+                <h4 className="text-lg font-bold text-stone-800">{boardId}</h4>
+                <span className="text-xs font-bold text-stone-400 px-2 py-0.5 bg-stone-100 rounded-full lowercase">
+                  {boardPrograms.length} {boardPrograms.length === 1 ? 'program' : 'programs'}
+                </span>
+              </div>
+              <div className="grid gap-4">
+                {boardPrograms.map((program) => (
+                  <Card key={program.id} className="p-6 flex flex-col sm:flex-row sm:items-center gap-6 hover:shadow-md transition-all border-l-4 border-l-stone-200" style={{ borderLeftColor: getClubColor(boardId).replace('bg-', '').replace('-200', '') }}>
+                    <div className="bg-stone-50 text-stone-800 p-4 rounded-2xl text-center min-w-[100px]">
+                      <p className="text-xs font-bold uppercase tracking-widest">{format(new Date(program.date), 'EEE')}</p>
+                      <p className="text-3xl font-black">{format(new Date(program.date), 'd')}</p>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-lg font-bold text-stone-900">{program.title}</h4>
+                      {program.location && <p className="text-emerald-700 text-xs font-bold mt-1">📍 {program.location}</p>}
+                      <p className="text-stone-500 text-sm mt-1">{program.description || 'Join us for this exciting program.'}</p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </Card>
-        )) : (
-          <div className="text-center py-10 text-stone-400 italic">No programs scheduled for this month.</div>
+          );
+        })}
+
+        {/* General Programs (No Club) */}
+        {(() => {
+          const generalPrograms = programsForMonth.filter(p => !p.clubId || (!clubs.find(c => c.id === p.clubId) && !['SRDB', 'LB', 'SAB', 'SAFA'].includes(p.clubId || '')));
+          if (generalPrograms.length === 0) return null;
+          
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-6 rounded-full bg-stone-300"></div>
+                <h4 className="text-lg font-bold text-stone-800">General Programs</h4>
+                <span className="text-xs font-bold text-stone-400 px-2 py-0.5 bg-stone-100 rounded-full lowercase">
+                  {generalPrograms.length} {generalPrograms.length === 1 ? 'program' : 'programs'}
+                </span>
+              </div>
+              <div className="grid gap-4">
+                {generalPrograms.map((program) => (
+                  <Card key={program.id} className="p-6 flex flex-col sm:flex-row sm:items-center gap-6 hover:shadow-md transition-all border-l-4 border-l-stone-300">
+                    <div className="bg-stone-50 text-stone-800 p-4 rounded-2xl text-center min-w-[100px]">
+                      <p className="text-xs font-bold uppercase tracking-widest">{format(new Date(program.date), 'EEE')}</p>
+                      <p className="text-3xl font-black">{format(new Date(program.date), 'd')}</p>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-lg font-bold text-stone-900">{program.title}</h4>
+                      {program.location && <p className="text-emerald-700 text-xs font-bold mt-1">📍 {program.location}</p>}
+                      <p className="text-stone-500 text-sm mt-1">{program.description || 'Join us for this exciting program.'}</p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {programsForMonth.length === 0 && (
+          <div className="text-center py-10 text-stone-400 italic bg-stone-50 rounded-2xl">
+            No programs scheduled for this month.
+          </div>
         )}
       </div>
     </div>

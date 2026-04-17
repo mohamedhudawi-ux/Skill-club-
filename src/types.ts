@@ -176,6 +176,7 @@ export interface Program {
   title: string;
   date: string;
   clubId?: string;
+  otherClubName?: string | null;
   category?: string;
   description?: string;
   addedBy: string;
