@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, query, collection, where, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, query, collection, where, getDocs, deleteDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { UserProfile, UserRole } from './types';
 
@@ -73,9 +73,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           
           // Access tracking for students
-          if (finalProfile.role === 'student') {
+          if (finalProfile.role === 'student' || finalProfile.role === 'safa' || finalProfile.role === 'staff') {
             const today = new Date().toISOString().split('T')[0];
-            if (finalProfile.lastAccessDate !== today) {
+            
+            // Notification for admin
+            const sessionKey = `notified_login_${firebaseUser.uid}`;
+            if (!sessionStorage.getItem(sessionKey)) {
+              addDoc(collection(db, 'loginNotifications'), {
+                userId: firebaseUser.uid,
+                userName: finalProfile.displayName || firebaseUser.displayName || 'User',
+                userEmail: firebaseUser.email,
+                role: finalProfile.role,
+                timestamp: serverTimestamp()
+              }).catch(console.error);
+              sessionStorage.setItem(sessionKey, 'true');
+            }
+
+            if (finalProfile.role === 'student') {
+              if (finalProfile.lastAccessDate !== today) {
               finalProfile = { ...finalProfile, dailyAccessCount: 1, lastAccessDate: today };
               await updateDoc(doc(db, 'users', firebaseUser.uid), { dailyAccessCount: 1, lastAccessDate: today });
             } else if ((finalProfile.dailyAccessCount || 0) < 7) {
@@ -88,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setProfile(null);
               setLoading(false);
               return;
+            }
             }
           }
           
@@ -135,6 +151,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
             setProfile(newProfile);
+
+            // Notification for admin (newly registered)
+            const sessionKey = `notified_login_${firebaseUser.uid}`;
+            if (!sessionStorage.getItem(sessionKey)) {
+              addDoc(collection(db, 'loginNotifications'), {
+                userId: firebaseUser.uid,
+                userName: newProfile.displayName,
+                userEmail: newProfile.email,
+                role: newProfile.role,
+                timestamp: serverTimestamp()
+              }).catch(console.error);
+              sessionStorage.setItem(sessionKey, 'true');
+            }
           } else {
             // No profile found and registration disabled, user is not authorized
             setProfile(null);

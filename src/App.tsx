@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import { SettingsProvider, useSettings } from './SettingsContext';
 import Layout from './components/Layout';
 import ProtectedRoute from './ProtectedRoute';
+import NotificationManager from './components/NotificationManager';
 import { Settings, AlertCircle } from 'lucide-react';
 
 // Pages
@@ -221,6 +222,7 @@ export default function App() {
   return (
     <SettingsProvider>
       <AuthProvider>
+        <NotificationManager />
         <Router>
           <AppRoutes />
         </Router>
