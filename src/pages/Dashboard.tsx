@@ -26,7 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, isAdmin, isStaff, isSafa, isStudent } = useAuth();
+  const { profile, isAdmin, isStaff, isSafa, isStudent, isAcademic } = useAuth();
   const { settings, siteContent: content } = useSettings();
   const [student, setStudent] = useState<Student | null>(null);
   const [entries, setEntries] = useState<SkillClubEntry[]>([]);
@@ -211,7 +211,7 @@ export default function Dashboard() {
 
 
   if (isAdmin) return <AdminDashboard />;
-  if (isStaff) return <StaffDashboard />;
+  if (isStaff || isAcademic) return <StaffDashboard />;
   if (isSafa) return <SafaDashboard />;
 
   if (isStudent && !profile?.admissionNumber) {
@@ -488,15 +488,24 @@ export default function Dashboard() {
                 ].map((social) => {
                   const link = content.find(c => c.key === social.key)?.value;
                   
-                  const formatLink = (link: string) => {
-                    if (!link) return '#';
-                    if (link.startsWith('http://') || link.startsWith('https://') || link.startsWith('mailto:') || link.startsWith('tel:')) {
-                      return link;
+                  const formatLink = (linkContent: string) => {
+                    if (!linkContent) return '#';
+                    const trimmed = linkContent.trim();
+                    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('mailto:') || trimmed.startsWith('tel:')) {
+                      return trimmed;
                     }
-                    return `https://${link}`;
+                    if (social.key === 'social_whatsapp') {
+                      const phone = trimmed.replace(/\D/g, '');
+                      return `https://wa.me/${phone}`;
+                    }
+                    if (social.key === 'social_instagram' && !trimmed.includes('/')) {
+                      const handle = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+                      return `https://instagram.com/${handle}`;
+                    }
+                    return `https://${trimmed}`;
                   };
 
-                  const href = link ? (social.prefix ? `${social.prefix}${link}` : formatLink(link)) : '#';
+                  const href = link ? (social.prefix ? `${social.prefix}${link.trim()}` : formatLink(link)) : '#';
                   
                   return (
                     <a 

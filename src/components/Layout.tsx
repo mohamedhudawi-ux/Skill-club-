@@ -125,12 +125,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const formatLink = (link: string | undefined) => {
-    if (!link) return '#';
-    if (link.startsWith('http://') || link.startsWith('https://') || link.startsWith('mailto:') || link.startsWith('tel:')) {
-      return link;
+  const formatLink = (url?: string, type?: 'whatsapp' | 'instagram') => {
+    if (!url) return '#';
+    let cleanUrl = url.trim();
+    if (cleanUrl.startsWith('http')) return cleanUrl;
+    if (cleanUrl.startsWith('mailto:') || cleanUrl.startsWith('tel:')) return cleanUrl;
+
+    if (type === 'whatsapp') {
+      // Remove all non-numeric characters for phone number
+      const phone = cleanUrl.replace(/\D/g, '');
+      return `https://wa.me/${phone}`;
     }
-    return `https://${link}`;
+
+    if (type === 'instagram') {
+      // If it's just a handle, prepend instagram.com
+      if (!cleanUrl.includes('/') && !cleanUrl.startsWith('@')) {
+        return `https://instagram.com/${cleanUrl}`;
+      }
+      if (cleanUrl.startsWith('@')) {
+        return `https://instagram.com/${cleanUrl.slice(1)}`;
+      }
+    }
+
+    return `https://${cleanUrl}`;
   };
 
   // Website Navbar for Public Pages
@@ -402,12 +419,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </a>
                 )}
                 {siteContent.find(c => c.key === 'social_instagram')?.value && (
-                  <a href={formatLink(siteContent.find(c => c.key === 'social_instagram')?.value)} target="_blank" rel="noopener noreferrer" className="text-stone-400 hover:text-pink-600 transition-colors">
+                  <a href={formatLink(siteContent.find(c => c.key === 'social_instagram')?.value, 'instagram')} target="_blank" rel="noopener noreferrer" className="text-stone-400 hover:text-pink-600 transition-colors">
                     <Instagram size={18} />
                   </a>
                 )}
                 {siteContent.find(c => c.key === 'social_whatsapp')?.value && (
-                  <a href={formatLink(siteContent.find(c => c.key === 'social_whatsapp')?.value)} target="_blank" rel="noopener noreferrer" className="text-stone-400 hover:text-emerald-600 transition-colors">
+                  <a href={formatLink(siteContent.find(c => c.key === 'social_whatsapp')?.value, 'whatsapp')} target="_blank" rel="noopener noreferrer" className="text-stone-400 hover:text-emerald-600 transition-colors">
                     <MessageCircle size={18} />
                   </a>
                 )}

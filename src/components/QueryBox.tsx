@@ -3,6 +3,7 @@ import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, de
 import { db } from '../firebase';
 import { UserProfile, Query as QueryType } from '../types';
 import { Send, Mic, Square, MessageSquare, Clock, CheckCircle, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function QueryBox({ userProfile }: { userProfile: UserProfile }) {
   const [message, setMessage] = useState('');
@@ -80,16 +81,12 @@ export function QueryBox({ userProfile }: { userProfile: UserProfile }) {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this query?')) {
-      try {
-        await deleteDoc(doc(db, 'queries', id));
-        setStatus({ type: 'success', msg: 'Query deleted successfully!' });
-        setTimeout(() => setStatus(null), 3000);
-      } catch (error) {
-        console.error('Error deleting query:', error);
-        setStatus({ type: 'error', msg: 'Failed to delete query.' });
-        setTimeout(() => setStatus(null), 3000);
-      }
+    try {
+      await deleteDoc(doc(db, 'queries', id));
+      toast.success('Query deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting query:', error);
+      toast.error('Failed to delete query.');
     }
   };
 

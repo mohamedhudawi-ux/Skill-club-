@@ -8,6 +8,7 @@ import { Button } from '../components/Button';
 import { FileUpload } from '../components/FileUpload';
 import { FileText, Trash2, Plus, Download } from 'lucide-react';
 import { useSettings } from '../SettingsContext';
+import { toast } from 'sonner';
 
 export default function ResourceLibrary() {
   const { isAdmin, isStaff } = useAuth();
@@ -28,18 +29,26 @@ export default function ResourceLibrary() {
 
   const handleUpload = async () => {
     if (!newResource.title || !newResource.fileUrl) return;
-    await addDoc(collection(db, 'resources'), {
-      ...newResource,
-      timestamp: serverTimestamp(),
-      uploadedBy: 'Admin/Staff' // Should be dynamic
-    });
-    setNewResource({ title: '', description: '', fileUrl: '', category: 'Study Material' });
-    setShowUpload(false);
+    try {
+      await addDoc(collection(db, 'resources'), {
+        ...newResource,
+        timestamp: serverTimestamp(),
+        uploadedBy: 'Admin/Staff'
+      });
+      setNewResource({ title: '', description: '', fileUrl: '', category: 'Study Material' });
+      setShowUpload(false);
+      toast.success('Resource uploaded successfully');
+    } catch (err) {
+      toast.error('Failed to upload resource');
+    }
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this resource?')) {
+    try {
       await deleteDoc(doc(db, 'resources', id));
+      toast.success('Resource deleted successfully');
+    } catch (err) {
+      toast.error('Failed to delete resource');
     }
   };
 

@@ -6,6 +6,7 @@ import { Card } from './Card';
 import { Button } from './Button';
 import { ClipboardList, Search, User, GraduationCap, Loader2, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { CCEMarksStudent } from './CCEMarksStudent';
+import { toast } from 'sonner';
 
 export function CCEMarksAdmin() {
   const [viewType, setViewType] = useState<'staff' | 'student' | 'manage'>('staff');
@@ -64,7 +65,9 @@ export function CCEMarksAdmin() {
 
   const handleStaffViewSearch = async () => {
     if (!selectedClass || !selectedSubject) {
-      alert('Please select Class and Subject.');
+      toast.error('Selection Required', {
+        description: 'Please select Class and Subject.'
+      });
       return;
     }
     setLoading(true);
@@ -127,7 +130,9 @@ export function CCEMarksAdmin() {
       }));
     } catch (error) {
       console.error('Error updating mark:', error);
-      alert('Failed to update mark.');
+      toast.error('Update Failed', {
+        description: 'Failed to update mark. Please try again.'
+      });
     }
   };
 
@@ -169,8 +174,10 @@ export function CCEMarksAdmin() {
       });
       await batch.commit();
       setMarks({});
+      toast.success('All marks cleared successfully');
     } catch (error) {
       console.error('FAILED to clear marks:', error);
+      toast.error('Failed to clear marks');
     } finally {
       setLoading(false);
     }

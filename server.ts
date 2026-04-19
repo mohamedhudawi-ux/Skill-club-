@@ -23,7 +23,7 @@ if (firebaseConfig.projectId) {
 async function startServer() {
   console.log('Starting server...');
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   app.use(express.json());
 
@@ -189,8 +189,11 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
+  // Detect production mode
+  const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync(path.join(__dirname, 'dist'));
+  
+  if (!isProduction) {
+    console.log('Running in development mode with Vite middleware');
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -198,15 +201,28 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    console.log('Running in production mode serving static files');
+    const distPath = path.join(__dirname, 'dist');
+    
+    // Serve static files with explicit logging or fallback check
+    app.use(express.static(distPath, {
+      index: false, // Don't serve index.html from here, we handle it with the catch-all
+    }));
+
+    // Explicitly handle assets to avoid them being caught by the catch-all
+    app.use('/assets', express.static(path.join(distPath, 'assets')));
+
     app.get('*all', (req, res) => {
+      // If the request looks like an asset that wasn't found, don't send index.html
+      if (req.path.includes('.') && !req.path.endsWith('.html')) {
+        return res.status(404).send('Not found');
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
   });
 }
 

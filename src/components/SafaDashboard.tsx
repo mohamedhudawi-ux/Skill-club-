@@ -111,7 +111,6 @@ export function SafaDashboard() {
   };
 
   const handleDeleteEvent = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this event?')) return;
     try {
       await deleteDoc(doc(db, 'programs', id));
     } catch (error) {

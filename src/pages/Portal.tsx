@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { toast } from 'sonner';
 import { 
   User, 
   Shield, 
@@ -11,7 +12,8 @@ import {
   Star,
   Calendar as CalendarIcon,
   Image as ImageIcon,
-  BookOpen
+  BookOpen,
+  FileText
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Card } from '../components/Card';
@@ -38,7 +40,9 @@ export default function Portal() {
           if (allowed) {
             navigate(path);
           } else {
-            alert('You have reached your daily limit of 7 portal visits. Please try again tomorrow.');
+            toast.error('Portal Limit Reached', {
+              description: 'You have reached your daily limit of 7 portal visits. Please try again tomorrow.'
+            });
           }
         });
       });
@@ -92,6 +96,15 @@ export default function Portal() {
       color: 'bg-rose-500',
       path: '/calendar',
       show: isStaff || isSafa || isAdmin
+    },
+    {
+      id: 'cce-marks',
+      title: 'CCE Marks',
+      description: 'Record and manage continuous evaluation marks.',
+      icon: FileText,
+      color: 'bg-emerald-600',
+      path: '/cce-marks',
+      show: isStaff || isAdmin || profile?.role === 'academic'
     },
     {
       id: 'gallery',

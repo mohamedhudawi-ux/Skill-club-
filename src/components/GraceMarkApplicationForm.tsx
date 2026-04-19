@@ -7,6 +7,7 @@ import { Student, GraceMarkApplication } from '../types';
 import { CLASS_LIST } from '../constants';
 import { Card } from './Card';
 import { Button } from './Button';
+import { toast } from 'sonner';
 import { FileText, Send, CheckCircle, AlertCircle, X, Award, Info, Lock } from 'lucide-react';
 
 interface Props {
@@ -64,12 +65,16 @@ export function GraceMarkApplicationForm({ student, initialData, onSuccess, onCa
     const pointsRequired = marksToAdd * 100;
 
     if (student.totalPoints < pointsRequired) {
-      alert(`Insufficient points. You need ${pointsRequired} points for ${marksToAdd} grace marks, but you only have ${student.totalPoints} points.`);
+      toast.error('Insufficient Points', {
+        description: `You need ${pointsRequired} points for ${marksToAdd} grace marks, but you only have ${student.totalPoints} points.`
+      });
       return;
     }
 
     if (existingTotal + marksToAdd > 5) {
-      alert(`Total grace marks cannot exceed 5. You have already applied for ${existingTotal} marks.`);
+      toast.error('Limit Exceeded', {
+        description: `Total grace marks cannot exceed 5. You have already applied for ${existingTotal} marks.`
+      });
       return;
     }
 

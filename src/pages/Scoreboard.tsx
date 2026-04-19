@@ -6,6 +6,7 @@ import { BarChart3, Trophy, Medal, Award, Trash2, Users, BookOpen, Download, Bar
 import { Card } from '../components/Card';
 import { useAuth } from '../AuthContext';
 import { Button } from '../components/Button';
+import { toast } from 'sonner';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, ImageRun, AlignmentType, VerticalAlign, BorderStyle, ShadingType } from 'docx';
 import { saveAs } from 'file-saver';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -128,17 +129,15 @@ export default function Scoreboard() {
       if (operationCount > 0) {
         batches.push(currentBatch);
       }
-
       for (const batch of batches) {
         await batch.commit();
       }
 
-      alert('All points and entries cleared successfully!');
+      toast.success('All points and entries cleared successfully!');
       setShowConfirm(false);
-      window.location.reload(); // Refresh to show updated state
     } catch (error) {
       console.error('Error clearing points:', error);
-      alert('Failed to clear points: ' + (error instanceof Error ? error.message : String(error)));
+      toast.error('Failed to clear points: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setLoading(false);
     }

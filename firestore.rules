@@ -113,8 +113,7 @@ service cloud.firestore {
     // Skill Club Entries
     match /skillClubEntries/{entryId} {
       allow read: if true;
-      allow create: if isAcademic() || isSafa() || isAdmin() || isStaff();
-      allow update, delete: if isAdmin() || isStaff();
+      allow create, update, delete: if isAcademic() || isAdmin() || isSafa();
     }
 
     // Queries
@@ -185,9 +184,8 @@ service cloud.firestore {
 
     // CCE Marks
     match /cceMarks/{markId} {
-      allow get: if isStaff() || isAdmin() || (isAuthenticated() && resource.data.studentId == getUserData().admissionNumber);
-      allow list: if isStaff() || isAdmin() || (isAuthenticated() && resource.data.studentId == getUserData().admissionNumber);
-      allow create, update, delete: if hasRole('staff') || hasRole('academic') || isAdmin();
+      allow read: if isAcademic() || isAdmin() || (isAuthenticated() && resource.data.studentId == getUserData().admissionNumber);
+      allow write: if isAcademic() || isAdmin();
     }
 
     // Class Dues
