@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, updateDoc, doc, deleteDoc, limit, getDocs } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, updateDoc, doc, deleteDoc, limit, getDocs, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { useSettings } from '../SettingsContext';
@@ -20,8 +20,16 @@ import { BrandingHeader } from './BrandingHeader';
 
 export function SafaDashboard() {
   const navigate = useNavigate();
-  const { profile, user } = useAuth();
+  const { profile, user, campusId, currentCampus } = useAuth();
   const { siteContent, loading: settingsLoading } = useSettings();
+
+  const studentUnionName = currentCampus?.studentUnionName || "SAFA";
+  const skillClubName = currentCampus?.skillClubName || "Skill Club";
+
+  const splitUnionName = studentUnionName.split(' ');
+  const mainName = splitUnionName[0];
+  const subName = splitUnionName.slice(1).join(' ') || 'Union';
+
   const [showEventForm, setShowEventForm] = useState(false);
   const [eventData, setEventData] = useState({ title: '', date: '', description: '', category: '' });
   const [recentEvents, setRecentEvents] = useState<Program[]>([]);
@@ -36,12 +44,13 @@ export function SafaDashboard() {
 
   const isSafaAdmin = user?.email === 'safa@skill.edu';                
                                                                       
-  useEffect(() => {                                                    
-    const unsub = onSnapshot(collection(db, 'treasury'), (snapshot) => {
+  useEffect(() => {
+    if (!campusId) return;
+    const unsub = onSnapshot(query(collection(db, 'treasury'), where('campusId', '==', campusId)), (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
     });                                                                
     return unsub;                                                      
-  }, []);                                                              
+  }, [campusId]);                                                              
 
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);                
@@ -57,49 +66,52 @@ export function SafaDashboard() {
   }, [officeBearers.length]);
 
   useEffect(() => {
+    if (!campusId) return;
     const unsubscribers: (() => void)[] = [];
 
     const setupListeners = () => {
       // Programs
-      unsubscribers.push(onSnapshot(query(collection(db, 'programs'), orderBy('timestamp', 'desc'), limit(10)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'programs'), where('campusId', '==', campusId), orderBy('timestamp', 'desc'), limit(10)), (snap) => {
         setRecentEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'programs')));
 
       // Office Bearers
-      unsubscribers.push(onSnapshot(query(collection(db, 'officeBearers'), limit(50)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'officeBearers'), where('campusId', '==', campusId), limit(50)), (snap) => {
         setOfficeBearers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as OfficeBearer)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'officeBearers')));
 
       // Boards
-      unsubscribers.push(onSnapshot(query(collection(db, 'boards'), limit(50)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'boards'), where('campusId', '==', campusId), limit(50)), (snap) => {
         setBoards(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Board)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'boards')));
 
       // Board Members
-      unsubscribers.push(onSnapshot(query(collection(db, 'boardMembers'), limit(200)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'boardMembers'), where('campusId', '==', campusId), limit(200)), (snap) => {
         setBoardMembers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BoardMember)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'boardMembers')));
 
       // Clubs
-      unsubscribers.push(onSnapshot(query(collection(db, 'clubs'), orderBy('totalPoints', 'desc'), limit(10)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'clubs'), where('campusId', '==', campusId), orderBy('totalPoints', 'desc'), limit(10)), (snap) => {
         setClubs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubs')));
 
       // Transactions
-      unsubscribers.push(onSnapshot(query(collection(db, 'treasury'), orderBy('date', 'desc'), limit(20)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'treasury'), where('campusId', '==', campusId), orderBy('date', 'desc'), limit(20)), (snap) => {
         setTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'treasury')));
     };
 
     setupListeners();
     return () => unsubscribers.forEach(unsub => unsub());
-  }, []);
+  }, [campusId]);
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!campusId) return;
     try {
       await addDoc(collection(db, 'programs'), {
         ...eventData,
+        campusId,
         addedBy: profile?.uid,
         timestamp: serverTimestamp()
       });
@@ -123,12 +135,17 @@ export function SafaDashboard() {
 
   const handleUpdateContent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!campusId) return;
     try {
-      const docId = siteContent.find(c => c.key === editingContent.key)?.id;
+      const docId = siteContent.find(c => c.key === editingContent.key && c.campusId === campusId)?.id;
       if (docId) {
         await updateDoc(doc(db, 'siteContent', docId), { value: editingContent.value });
       } else {
-        await addDoc(collection(db, 'siteContent'), { key: editingContent.key, value: editingContent.value });
+        await addDoc(collection(db, 'siteContent'), { 
+          key: editingContent.key, 
+          value: editingContent.value,
+          campusId 
+        });
       }
       setShowContentModal(false);
     } catch (error) {
@@ -137,12 +154,17 @@ export function SafaDashboard() {
   };
 
   const handleUpdateHijriOffset = async (offset: string) => {
+    if (!campusId) return;
     try {
-      const docId = siteContent.find(c => c.key === 'hijri_offset')?.id;
+      const docId = siteContent.find(c => c.key === 'hijri_offset' && c.campusId === campusId)?.id;
       if (docId) {
         await updateDoc(doc(db, 'siteContent', docId), { value: offset });
       } else {
-        await addDoc(collection(db, 'siteContent'), { key: 'hijri_offset', value: offset });
+        await addDoc(collection(db, 'siteContent'), { 
+          key: 'hijri_offset', 
+          value: offset,
+          campusId 
+        });
       }
     } catch (error) {
       console.error('Error updating hijri offset:', error);
@@ -150,11 +172,12 @@ export function SafaDashboard() {
   };
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'treasury'), (snapshot) => {
+    if (!campusId) return;
+    const unsub = onSnapshot(query(collection(db, 'treasury'), where('campusId', '==', campusId)), (snapshot) => {
       setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
     });
     return unsub;
-  }, []);
+  }, [campusId]);
 
   const stats = [
     { label: 'Total Programs', value: recentEvents.length, icon: Calendar, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -183,21 +206,21 @@ export function SafaDashboard() {
         <div className="relative z-10 max-w-5xl">
           <div className="flex items-center gap-4 mb-8">
             <div className="bg-emerald-500 text-white px-5 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.25em] shadow-lg shadow-emerald-500/20">
-              Safa Executive Portal
+              {studentUnionName} Executive Portal
             </div>
             <div className="h-px w-12 bg-white/20" />
             <span className="text-white text-xs font-bold tracking-widest uppercase">{getFullHijriDate(parseInt(siteContent.find(c => c.key === 'hijri_offset')?.value || '0'))}</span>
           </div>
           
           <h1 className="text-7xl md:text-9xl font-black tracking-tighter leading-[0.8] mb-10 uppercase text-emerald-500">
-            Safa <br /> Union
+            {mainName} <br /> {subName}
           </h1>
           
           <div className="flex flex-wrap items-center gap-8">
             <div className="flex items-center gap-5 bg-white/5 backdrop-blur-xl p-2.5 pr-8 rounded-full border border-white/10 hover:bg-white/10 transition-all cursor-pointer group" onClick={() => navigate('/profile')}>
               <div className="relative">
                 <img 
-                  src={profile?.photoURL || `https://ui-avatars.com/api/?name=${profile?.displayName || 'Safa'}&background=random`} 
+                  src={profile?.photoURL || `https://ui-avatars.com/api/?name=${profile?.displayName || studentUnionName}&background=random`} 
                   className="w-14 h-14 rounded-full object-cover border-2 border-emerald-500/50 group-hover:border-emerald-500 transition-all"
                   alt="Profile"
                 />
@@ -207,7 +230,7 @@ export function SafaDashboard() {
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-0.5">Executive Access</p>
-                <p className="text-lg font-bold tracking-tight">{profile?.displayName || 'Safa Executive'}</p>
+                <p className="text-lg font-bold tracking-tight">{profile?.displayName || `${studentUnionName} Executive`}</p>
               </div>
             </div>
           </div>
@@ -230,7 +253,7 @@ export function SafaDashboard() {
                 <div className="flex-1 space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="h-px w-8 bg-emerald-500" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Safa Leadership</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">{studentUnionName} Leadership</span>
                   </div>
                   <h2 className="text-4xl md:text-5xl font-black text-stone-900 tracking-tighter uppercase leading-none">
                     {bearer.name}

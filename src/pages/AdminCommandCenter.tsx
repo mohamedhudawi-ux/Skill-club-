@@ -59,15 +59,19 @@ import { CCEMarksAdmin } from '../components/CCEMarksAdmin';
 
 
 
-type Tab = 'dashboard' | 'profile' | 'gallery' | 'clubs' | 'boards' | 'calendar' | 'users' | 'staff' | 'club-points' | 'club-members' | 'students' | 'submissions' | 'gracemarks' | 'settings' | 'reports' | 'marks';
+type Tab = 'dashboard' | 'profile' | 'gallery' | 'clubs' | 'boards' | 'calendar' | 'users' | 'staff' | 'club-points' | 'club-members' | 'students' | 'submissions' | 'gracemarks' | 'settings' | 'reports' | 'marks' | 'master';
 
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 
 export default function AdminCommandCenter() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, isAdmin, campusId, isMasterAdmin, currentCampus } = useAuth();
   const { settings, refreshContent } = useSettings();
+
+  const studentUnionName = currentCampus?.studentUnionName || "SAFA";
+  const skillClubName = currentCampus?.skillClubName || "Skill Club";
+
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [gallery, setGallery] = useState<any[]>([]);
   const [calendar, setCalendar] = useState<any[]>([]);
@@ -122,45 +126,45 @@ export default function AdminCommandCenter() {
       setLoading(true);
       try {
         if (activeTab === 'users' || activeTab === 'staff') {
-          const snap = await getDocs(query(collection(db, 'users'), limit(100)));
+          const snap = await getDocs(query(collection(db, 'users'), where('campusId', '==', campusId), limit(100)));
           setUsers(snap.docs.map(doc => doc.data() as UserProfile));
         }
 
         if (activeTab === 'clubs' || activeTab === 'club-points' || activeTab === 'club-members' || activeTab === 'dashboard') {
-          const snap = await getDocs(query(collection(db, 'clubs'), limit(50)));
+          const snap = await getDocs(query(collection(db, 'clubs'), where('campusId', '==', campusId), limit(50)));
           setClubs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
         }
 
         if (activeTab === 'boards') {
-          const snap = await getDocs(query(collection(db, 'boards'), limit(50)));
+          const snap = await getDocs(query(collection(db, 'boards'), where('campusId', '==', campusId), limit(50)));
           setBoards(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Board)));
           
-          const membersSnap = await getDocs(query(collection(db, 'boardMembers'), limit(200)));
+          const membersSnap = await getDocs(query(collection(db, 'boardMembers'), where('campusId', '==', campusId), limit(200)));
           setBoardMembers(membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BoardMember)));
         }
 
         if (activeTab === 'dashboard') {
-          const snap = await getDocs(query(collection(db, 'officeBearers'), limit(50)));
+          const snap = await getDocs(query(collection(db, 'officeBearers'), where('campusId', '==', campusId), limit(50)));
           setBearers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as OfficeBearer)));
         }
 
         if (activeTab === 'club-members' || activeTab === 'clubs') {
-          const snap = await getDocs(query(collection(db, 'clubMembers'), limit(200)));
+          const snap = await getDocs(query(collection(db, 'clubMembers'), where('campusId', '==', campusId), limit(200)));
           setClubMembers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubMember)));
         }
 
         if (activeTab === 'students' || activeTab === 'dashboard') {
-          const snap = await getDocs(query(collection(db, 'students'), limit(100)));
+          const snap = await getDocs(query(collection(db, 'students'), where('campusId', '==', campusId), limit(100)));
           setStudents(snap.docs.map(doc => doc.data() as Student));
         }
 
         if (activeTab === 'gallery') {
-          const snap = await getDocs(query(collection(db, 'gallery'), orderBy('createdAt', 'desc'), limit(50)));
+          const snap = await getDocs(query(collection(db, 'gallery'), where('campusId', '==', campusId), orderBy('createdAt', 'desc'), limit(50)));
           setGallery(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         }
 
         if (activeTab === 'calendar') {
-          const snap = await getDocs(query(collection(db, 'calendar'), orderBy('date', 'desc'), limit(50)));
+          const snap = await getDocs(query(collection(db, 'calendar'), where('campusId', '==', campusId), orderBy('date', 'desc'), limit(50)));
           setCalendar(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         }
       } catch (error) {
@@ -806,7 +810,7 @@ export default function AdminCommandCenter() {
   const generateStudentReport = () => {
     const doc = new jsPDF();
     doc.setFontSize(20);
-    doc.text('Safa Union Student Performance Report', 14, 22);
+    doc.text(`${studentUnionName} Student Performance Report`, 14, 22);
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
@@ -830,7 +834,7 @@ export default function AdminCommandCenter() {
   const generateClubReport = () => {
     const doc = new jsPDF();
     doc.setFontSize(20);
-    doc.text('Safa Union Club Performance Report', 14, 22);
+    doc.text(`${studentUnionName} Club Performance Report`, 14, 22);
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
@@ -1016,7 +1020,7 @@ export default function AdminCommandCenter() {
   const renderBoards = () => (
     <div className="space-y-8">
       <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-emerald-800 text-sm">
-        <strong>Note:</strong> These are Safa Union boards (e.g. Library Board, Language Board, SRDB, Publishing Bureau).
+        <strong>Note:</strong> These are {studentUnionName} boards (e.g. Library Board, Language Board, SRDB, Publishing Bureau).
       </div>
       <div className="flex flex-wrap gap-2 mb-4">
         <span className="text-xs font-bold text-stone-400 uppercase py-2">Quick Add:</span>
@@ -1026,7 +1030,7 @@ export default function AdminCommandCenter() {
             variant="ghost"
             onClick={async () => {
               try {
-                await addDoc(collection(db, 'boards'), { name, description: `Official Safa Union ${name}` });
+                await addDoc(collection(db, 'boards'), { name, campusId, description: `Official ${studentUnionName} ${name}` });
                 setStatus({ type: 'success', msg: `${name} added!` });
               } catch (error) {
                 setStatus({ type: 'error', msg: 'Failed to add board.' });
@@ -1609,7 +1613,7 @@ export default function AdminCommandCenter() {
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50 space-y-4">
       <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-stone-500 font-bold animate-pulse">Loading Safa Dashboard...</p>
+      <p className="text-stone-500 font-bold animate-pulse">Loading {studentUnionName} Dashboard...</p>
     </div>
   );
 
@@ -1619,6 +1623,7 @@ export default function AdminCommandCenter() {
       title: 'Dashboard',
       items: [
         { id: 'dashboard', label: 'Overview', icon: BarChart3 },
+        ...(isMasterAdmin ? [{ id: 'master' as Tab, label: 'Master Board', icon: Globe, isLink: true, path: '/master-dashboard' }] : []),
       ]
     },
     {
@@ -1650,7 +1655,7 @@ export default function AdminCommandCenter() {
         { id: 'calendar', label: 'Calendar', icon: GraduationCap },
         { id: 'gallery', label: 'Gallery', icon: ImageIcon },
         { id: 'profile', label: 'My Profile', icon: User },
-        ...(role === 'admin' ? [{ id: 'settings', label: 'Portal Settings', icon: Settings, isLink: true }] : []),
+        ...(isAdmin ? [{ id: 'settings', label: 'Portal Settings', icon: Settings, isLink: true, path: '#' }] : []),
       ]
     }
   ];
@@ -1678,7 +1683,9 @@ export default function AdminCommandCenter() {
                   <button
                     key={item.id}
                     onClick={() => {
-                      if (item.isLink) {
+                      if (item.isLink && item.path) {
+                        navigate(item.path);
+                      } else if (item.isLink) {
                         navigate('/admin/settings');
                       } else {
                         setActiveTab(item.id as Tab);

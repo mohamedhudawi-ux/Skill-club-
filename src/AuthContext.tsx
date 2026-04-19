@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, query, collection, where, getDocs, deleteDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { UserProfile, UserRole } from './types';
+import { UserProfile, UserRole, Campus } from './types';
 
 interface AuthContextType {
   user: User | null;
@@ -13,6 +13,9 @@ interface AuthContextType {
   isSafa: boolean;
   isStudent: boolean;
   isAcademic: boolean;
+  isMasterAdmin: boolean;
+  campusId?: string;
+  currentCampus: Campus | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,7 +23,27 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [currentCampus, setCurrentCampus] = useState<Campus | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCampus = async (cid: string) => {
+      try {
+        const campusDoc = await getDoc(doc(db, 'campuses', cid));
+        if (campusDoc.exists()) {
+          setCurrentCampus({ id: campusDoc.id, ...campusDoc.data() } as Campus);
+        }
+      } catch (error) {
+        console.error('Error fetching current campus:', error);
+      }
+    };
+
+    if (profile?.campusId) {
+      fetchCampus(profile.campusId);
+    } else {
+      setCurrentCampus(null);
+    }
+  }, [profile?.campusId]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -31,15 +54,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (userDoc.exists()) {
           const data = userDoc.data() as UserProfile;
-          // Ensure safa@skill.edu has safa role and mdthaha213@gmail.com has admin role
-          const isAdminEmail = firebaseUser.email === 'mdthaha213@gmail.com' || firebaseUser.email === 'admin@skill.edu';
+          // Ensure safa@skill.edu has safa role and mdthaha213@gmail.com has master_admin role
+          const isMasterAdminEmail = firebaseUser.email === 'mdthaha213@gmail.com';
+          const isAdminEmail = isMasterAdminEmail || firebaseUser.email === 'admin@skill.edu';
           const isSafaEmail = firebaseUser.email === 'safa@skill.edu' || firebaseUser.email?.endsWith('@safa.edu');
           const isStaffEmail = firebaseUser.email?.endsWith('@staff.edu') || ['sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'].includes(firebaseUser.email || '');
           const isSkillEduEmail = firebaseUser.email?.endsWith('@skill.edu');
           
           let finalProfile = data;
           
-          if (isAdminEmail && data.role !== 'admin') {
+          if (isMasterAdminEmail && data.role !== 'master_admin') {
+            finalProfile = { ...data, role: 'master_admin' as UserRole };
+            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+          } else if (isAdminEmail && data.role !== 'admin' && data.role !== 'master_admin') {
             finalProfile = { ...data, role: 'admin' as UserRole };
             await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
           } else if (isSafaEmail && data.role !== 'safa') {
@@ -113,7 +140,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const settingsDoc = await getDoc(doc(db, 'settings', 'system'));
           const registrationEnabled = settingsDoc.exists() ? settingsDoc.data().registrationEnabled !== false : true;
 
-          const isAdminEmail = firebaseUser.email === 'mdthaha213@gmail.com' || firebaseUser.email === 'admin@skill.edu';
+          const isMasterAdminEmail = firebaseUser.email === 'mdthaha213@gmail.com';
+          const isAdminEmail = isMasterAdminEmail || firebaseUser.email === 'admin@skill.edu';
           const isSafaEmail = firebaseUser.email === 'safa@skill.edu' || firebaseUser.email?.endsWith('@safa.edu');
           const isStaffEmail = firebaseUser.email?.endsWith('@staff.edu') || ['sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'].includes(firebaseUser.email || '');
           const isSkillEduEmail = firebaseUser.email?.endsWith('@skill.edu');
@@ -136,14 +164,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
 
-          if (registrationEnabled || isAdminEmail || isSafaEmail || isStaffEmail || isPreRegisteredStudent || isSkillEduEmail) {
+          if (registrationEnabled || isMasterAdminEmail || isAdminEmail || isSafaEmail || isStaffEmail || isPreRegisteredStudent || isSkillEduEmail) {
             // Create a default profile
-            const newRole: UserRole = isAdminEmail ? 'admin' : (isSafaEmail ? 'safa' : (isStaffEmail ? 'staff' : 'student'));
+            const newRole: UserRole = isMasterAdminEmail ? 'master_admin' : (isAdminEmail ? 'admin' : (isSafaEmail ? 'safa' : (isStaffEmail ? 'staff' : 'student')));
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
               displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
               role: newRole,
+              campusId: isMasterAdminEmail ? undefined : 'default', // Assign to default campus for others
               photoURL: firebaseUser.photoURL || '',
               admissionNumber: linkedAdmissionNumber || undefined,
               createdAt: new Date().toISOString()
@@ -183,11 +212,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     profile,
     loading,
-    isAdmin: profile?.role === 'admin',
-    isStaff: profile?.role === 'staff' || profile?.role === 'admin',
-    isSafa: profile?.role === 'safa' || profile?.role === 'admin',
+    isAdmin: profile?.role === 'admin' || profile?.role === 'master_admin',
+    isStaff: profile?.role === 'staff' || profile?.role === 'admin' || profile?.role === 'master_admin',
+    isSafa: profile?.role === 'safa' || profile?.role === 'admin' || profile?.role === 'master_admin',
     isStudent: profile?.role === 'student',
-    isAcademic: profile?.role === 'academic' || profile?.role === 'admin',
+    isAcademic: profile?.role === 'academic' || profile?.role === 'admin' || profile?.role === 'master_admin',
+    isMasterAdmin: profile?.role === 'master_admin',
+    campusId: profile?.campusId,
+    currentCampus,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

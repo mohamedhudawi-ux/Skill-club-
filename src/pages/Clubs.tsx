@@ -1,21 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, limit } from 'firebase/firestore';
+import { collection, query, getDocs, limit, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useAuth } from '../AuthContext';
 import { Club, ClubMember } from '../types';
 import { motion } from 'motion/react';
 import { Users, Info } from 'lucide-react';
 import { Card } from '../components/Card';
 
 export default function Clubs() {
+  const { campusId } = useAuth();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [members, setMembers] = useState<ClubMember[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!campusId) return;
     const fetchData = async () => {
       try {
-        const clubsSnap = await getDocs(query(collection(db, 'clubs'), limit(50)));
-        const membersSnap = await getDocs(query(collection(db, 'clubMembers'), limit(100)));
+        const clubsSnap = await getDocs(query(collection(db, 'clubs'), where('campusId', '==', campusId), limit(50)));
+        const membersSnap = await getDocs(query(collection(db, 'clubMembers'), where('campusId', '==', campusId), limit(100)));
         
         setClubs(clubsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
         setMembers(membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubMember)));
@@ -26,7 +29,7 @@ export default function Clubs() {
       }
     };
     fetchData();
-  }, []);
+  }, [campusId]);
 
   if (loading) {
     return (

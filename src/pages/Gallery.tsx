@@ -1,25 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, limit, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, serverTimestamp, limit, deleteDoc, doc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { GalleryItem } from '../types';
 import { useAuth } from '../AuthContext';
+import { GalleryItem } from '../types';
 import { Upload, Plus, X, Image as ImageIcon, Maximize2, Trash2 } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { GalleryViewer } from '../components/GalleryViewer';
 
 export default function Gallery() {
-  const { profile } = useAuth();
+  const { profile, campusId } = useAuth();
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
 
   useEffect(() => {
+    if (!campusId) return;
     const fetchGallery = async () => {
       try {
         setLoading(true);
-        const q = query(collection(db, 'gallery'), orderBy('timestamp', 'desc'), limit(24));
+        const q = query(collection(db, 'gallery'), where('campusId', '==', campusId), orderBy('timestamp', 'desc'), limit(24));
         const snapshot = await getDocs(q);
         setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GalleryItem)));
       } catch (error) {
@@ -29,7 +30,7 @@ export default function Gallery() {
       }
     };
     fetchGallery();
-  }, []);
+  }, [campusId]);
 
   return (
     <div className="space-y-8">

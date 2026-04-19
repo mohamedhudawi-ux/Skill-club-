@@ -5,6 +5,7 @@ import { Club, Student, ClubPointEntry, SkillClubEntry, SKILL_CLUB_CATEGORIES } 
 import { BarChart3, Trophy, Medal, Award, Trash2, Users, BookOpen, Download, BarChart as BarChartIcon } from 'lucide-react';
 import { Card } from '../components/Card';
 import { useAuth } from '../AuthContext';
+import { useSettings } from '../SettingsContext';
 import { Button } from '../components/Button';
 import { toast } from 'sonner';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, ImageRun, AlignmentType, VerticalAlign, BorderStyle, ShadingType } from 'docx';
@@ -20,11 +21,13 @@ export default function Scoreboard() {
   const [skillClubEntries, setSkillClubEntries] = useState<SkillClubEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
-  const { profile, isSafa, isStaff, isStudent, isAdmin } = useAuth();
+  const { profile, isSafa, isStaff, isStudent, isAdmin, campusId } = useAuth();
+  const { currentCampus } = useSettings();
   const chartRef = React.useRef<HTMLDivElement>(null);
   const clubChartRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!campusId) return;
     setLoading(true);
     const unsubscribers: (() => void)[] = [];
 
@@ -35,22 +38,22 @@ export default function Scoreboard() {
       const startTimestamp = Timestamp.fromDate(startOfMonth);
 
       // Clubs
-      unsubscribers.push(onSnapshot(query(collection(db, 'clubs'), limit(50)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'clubs'), where('campusId', '==', campusId), limit(50)), (snap) => {
         setClubs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubs')));
 
       // Student Rankings
-      unsubscribers.push(onSnapshot(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(50)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId), orderBy('totalPoints', 'desc'), limit(50)), (snap) => {
         setRankings(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
 
       // Club Point Entries (Current Month)
-      unsubscribers.push(onSnapshot(query(collection(db, 'clubPointEntries'), where('timestamp', '>=', startTimestamp), limit(100)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId), where('timestamp', '>=', startTimestamp), limit(100)), (snap) => {
         setClubPointEntries(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubPointEntry)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubPointEntries')));
 
       // Skill Club Entries (Current Month)
-      unsubscribers.push(onSnapshot(query(collection(db, 'skillClubEntries'), where('timestamp', '>=', startTimestamp), limit(100)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'skillClubEntries'), where('campusId', '==', campusId), where('timestamp', '>=', startTimestamp), limit(100)), (snap) => {
         setSkillClubEntries(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'skillClubEntries')));
 
@@ -59,26 +62,27 @@ export default function Scoreboard() {
 
     setupListeners();
     return () => unsubscribers.forEach(unsub => unsub());
-  }, []);
+  }, [campusId]);
 
   const handleClearPoints = async () => {
+    if (!campusId) return;
     try {
       setLoading(true);
       
-      // Only fetch entries that exist
+      // Only fetch entries that exist in this campus
       const [clubEntriesSnap, skillEntriesSnap] = await Promise.all([
-        getDocs(collection(db, 'clubPointEntries')),
-        getDocs(collection(db, 'skillClubEntries'))
+        getDocs(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId))),
+        getDocs(query(collection(db, 'skillClubEntries'), where('campusId', '==', campusId)))
       ]);
 
-      // Only fetch clubs with points
-      const clubsSnap = await getDocs(query(collection(db, 'clubs'), where('totalPoints', '>', 0)));
+      // Only fetch clubs with points in this campus
+      const clubsSnap = await getDocs(query(collection(db, 'clubs'), where('campusId', '==', campusId), where('totalPoints', '>', 0)));
       
-      // Only fetch students with points or badges
-      const studentsSnap = await getDocs(query(collection(db, 'students'), where('totalPoints', '>', 0)));
+      // Only fetch students with points or badges in this campus
+      const studentsSnap = await getDocs(query(collection(db, 'students'), where('campusId', '==', campusId), where('totalPoints', '>', 0)));
       
-      // Only fetch users (students) with points or badges
-      const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'student'), where('totalPoints', '>', 0)));
+      // Only fetch users (students) with points or badges in this campus
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('campusId', '==', campusId), where('role', '==', 'student'), where('totalPoints', '>', 0)));
       
       const batches = [];
       let currentBatch = writeBatch(db);
@@ -176,6 +180,9 @@ export default function Scoreboard() {
 
   const sortedClubs = [...clubs].sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
 
+  // Dynamic Categories from Campus Settings
+  const categories = currentCampus?.skillClubRules?.map(r => r.category) || SKILL_CLUB_CATEGORIES;
+
   // Class-wise
   const studentsByClass = rankings.reduce((acc, student) => {
     const className = student.class || 'Unassigned';
@@ -189,7 +196,7 @@ export default function Scoreboard() {
   });
 
   // Category-wise
-  const categoryToppers = SKILL_CLUB_CATEGORIES.map(category => {
+  const categoryToppers = categories.map(category => {
     const topStudents = rankings
       .filter(s => (s.categoryPoints?.[category] || 0) > 0)
       .sort((a, b) => (b.categoryPoints?.[category] || 0) - (a.categoryPoints?.[category] || 0))

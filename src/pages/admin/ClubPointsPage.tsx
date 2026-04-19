@@ -1,23 +1,26 @@
 import React from 'react';
 import { Club } from '../../types';
-import { collection, getDocs, query, updateDoc, doc, increment } from 'firebase/firestore';
+import { collection, getDocs, query, updateDoc, doc, increment, where } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { useAuth } from '../../AuthContext';
 
 export default function ClubPointsPage() {
+  const { campusId } = useAuth();
   const [clubs, setClubs] = React.useState<Club[]>([]);
   const [status, setStatus] = React.useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
   React.useEffect(() => {
+    if (!campusId) return;
     const fetchClubs = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'clubs')));
+        const snap = await getDocs(query(collection(db, 'clubs'), where('campusId', '==', campusId)));
         setClubs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
       } catch (error) {
         console.error('Error fetching clubs:', error);
       }
     };
     fetchClubs();
-  }, []);
+  }, [campusId]);
 
   const handleUpdateClubPoints = async (clubId: string, points: number) => {
     try {

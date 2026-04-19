@@ -2,8 +2,11 @@ import React from 'react';
 import { useSettings } from '../SettingsContext';
 
 export function BrandingHeader() {
-  const { siteContent } = useSettings();
+  const { siteContent, currentCampus } = useSettings();
   const collegeLogo = siteContent.find(c => c.key === 'college_logo')?.value;
+  const campusName = currentCampus?.name || "Darul Huda Punganur";
+  const studentUnionName = currentCampus?.studentUnionName || "Safa Union";
+  const skillClubName = currentCampus?.skillClubName || "Skill Club";
 
   return (
     <div className="space-y-6 mb-10">
@@ -12,20 +15,20 @@ export function BrandingHeader() {
         <div className="flex justify-center">
           <img 
             src={collegeLogo} 
-            alt="Darul Huda Punganur Logo" 
+            alt={campusName + " Logo"} 
             className="h-24 md:h-32 object-contain"
             referrerPolicy="no-referrer"
           />
         </div>
       )}
 
-      {/* Info of Darul Huda Punganur */}
+      {/* Info of Campus */}
       <div className="text-center space-y-2">
         <h1 className="text-3xl md:text-5xl font-black text-stone-900 tracking-tighter uppercase">
-          Darul Huda <span className="text-emerald-600">Punganur</span>
+          {campusName}
         </h1>
         <p className="text-stone-500 font-bold uppercase tracking-[0.3em] text-[10px] md:text-xs">
-          Skill Club Portal • Safa Union
+          {skillClubName} Portal • {studentUnionName}
         </p>
       </div>
     </div>

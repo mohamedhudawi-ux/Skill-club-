@@ -15,7 +15,11 @@ import { safeToDate } from '../utils/date';
 import { getGregorianDate } from '../utils/hijri';
 
 export default function SafaPanel() {
-  const { profile, isSafa, isAdmin } = useAuth();
+  const { profile, isSafa, isAdmin, campusId, currentCampus } = useAuth();
+  
+  const studentUnionName = currentCampus?.studentUnionName || "SAFA";
+  const skillClubName = currentCampus?.skillClubName || "Skill Club";
+
   const { siteContent } = useSettings();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'programs' | 'gallery' | 'clubs' | 'boards' | 'office-bearers' | 'club-points' | 'monthly-reports' | 'scoreboard' | 'calendar'>('programs');
@@ -42,52 +46,53 @@ export default function SafaPanel() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!campusId) return;
       try {
         if (activeTab === 'clubs' || activeTab === 'club-points' || activeTab === 'scoreboard' || activeTab === 'programs') {
-          const snapshot = await getDocs(collection(db, 'clubs'));
+          const snapshot = await getDocs(query(collection(db, 'clubs'), where('campusId', '==', campusId)));
           setClubs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
         }
 
         if (activeTab === 'clubs') {
-          const snapshot = await getDocs(collection(db, 'clubMembers'));
+          const snapshot = await getDocs(query(collection(db, 'clubMembers'), where('campusId', '==', campusId)));
           setClubMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubMember)));
         }
 
         if (activeTab === 'boards') {
-          const boardsSnap = await getDocs(collection(db, 'boards'));
+          const boardsSnap = await getDocs(query(collection(db, 'boards'), where('campusId', '==', campusId)));
           setBoards(boardsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Board)));
           
-          const membersSnap = await getDocs(collection(db, 'boardMembers'));
+          const membersSnap = await getDocs(query(collection(db, 'boardMembers'), where('campusId', '==', campusId)));
           setBoardMembers(membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BoardMember)));
         }
 
         if (activeTab === 'office-bearers') {
-          const snapshot = await getDocs(collection(db, 'officeBearers'));
+          const snapshot = await getDocs(query(collection(db, 'officeBearers'), where('campusId', '==', campusId)));
           setOfficeBearers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as OfficeBearer)));
         }
 
         if (activeTab === 'gallery') {
-          const snapshot = await getDocs(query(collection(db, 'gallery'), orderBy('createdAt', 'desc'), limit(50)));
+          const snapshot = await getDocs(query(collection(db, 'gallery'), where('campusId', '==', campusId), orderBy('createdAt', 'desc'), limit(50)));
           setGalleryItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GalleryItem)));
         }
 
         if (activeTab === 'programs') {
-          const snapshot = await getDocs(query(collection(db, 'programs'), orderBy('date', 'desc'), limit(50)));
+          const snapshot = await getDocs(query(collection(db, 'programs'), where('campusId', '==', campusId), orderBy('date', 'desc'), limit(50)));
           setPrograms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
         }
 
         if (activeTab === 'club-points') {
-          const snapshot = await getDocs(query(collection(db, 'clubPointEntries'), orderBy('timestamp', 'desc'), limit(100)));
+          const snapshot = await getDocs(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId), orderBy('timestamp', 'desc'), limit(100)));
           setClubPointEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubPointEntry)));
         }
 
         if (activeTab === 'monthly-reports') {
-          const snapshot = await getDocs(query(collection(db, 'monthlyReports'), orderBy('month', 'desc'), limit(24)));
+          const snapshot = await getDocs(query(collection(db, 'monthlyReports'), where('campusId', '==', campusId), orderBy('month', 'desc'), limit(24)));
           setMonthlyReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MonthlyReport)));
         }
 
         if (activeTab === 'calendar') {
-          const snapshot = await getDocs(query(collection(db, 'calendar'), orderBy('date', 'desc'), limit(50)));
+          const snapshot = await getDocs(query(collection(db, 'calendar'), where('campusId', '==', campusId), orderBy('date', 'desc'), limit(50)));
           setCalendar(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         }
       } catch (error) {
@@ -96,7 +101,7 @@ export default function SafaPanel() {
     };
 
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, campusId]);
 
   // Form States
   const [newProgram, setNewProgram] = useState({ title: '', date: '', description: '', location: '', clubId: '', otherClubName: '', useHijri: false, hijriYear: '', hijriMonth: '', hijriDay: '' });
@@ -112,10 +117,11 @@ export default function SafaPanel() {
 
   const handleAddClubPoints = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClubPoints.clubId || newClubPoints.points === 0) return;
+    if (!newClubPoints.clubId || newClubPoints.points === 0 || !campusId) return;
     try {
       const docRef = await addDoc(collection(db, 'clubPointEntries'), {
         ...newClubPoints,
+        campusId,
         addedBy: profile?.uid,
         timestamp: serverTimestamp()
       });
@@ -139,6 +145,7 @@ export default function SafaPanel() {
       const newEntry: ClubPointEntry = {
         id: docRef.id,
         ...newClubPoints,
+        campusId,
         addedBy: profile?.uid || '',
         timestamp: new Date()
       };
@@ -156,10 +163,11 @@ export default function SafaPanel() {
   const [confirmingClubId, setConfirmingClubId] = useState<string | null>(null);
 
   const handleClearAllStudentPoints = async () => {
+    if (!campusId) return;
     try {
       setLoading(true);
-      // Only fetch students who actually have points to clear
-      const studentsQuery = query(collection(db, 'students'), where('totalPoints', '>', 0));
+      // Only fetch students who actually have points to clear in this campus
+      const studentsQuery = query(collection(db, 'students'), where('campusId', '==', campusId), where('totalPoints', '>', 0));
       const studentsSnapshot = await getDocs(studentsQuery);
       
       const batches = [];
@@ -195,8 +203,9 @@ export default function SafaPanel() {
   };
 
   const handleClearIndividualClubPoints = async (clubId: string) => {
+    if (!campusId) return;
     try {
-      const entriesSnapshot = await getDocs(query(collection(db, 'clubPointEntries'), where('clubId', '==', clubId)));
+      const entriesSnapshot = await getDocs(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId), where('clubId', '==', clubId)));
       const clubRef = doc(db, 'clubs', clubId);
       
       const batches = [];
@@ -237,9 +246,10 @@ export default function SafaPanel() {
   };
 
   const handleClearAllClubPoints = async () => {
+    if (!campusId) return;
     try {
-      const entriesSnapshot = await getDocs(collection(db, 'clubPointEntries'));
-      const clubsSnapshot = await getDocs(collection(db, 'clubs'));
+      const entriesSnapshot = await getDocs(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId)));
+      const clubsSnapshot = await getDocs(query(collection(db, 'clubs'), where('campusId', '==', campusId)));
       
       const batches = [];
       let currentBatch = writeBatch(db);
@@ -290,9 +300,11 @@ export default function SafaPanel() {
 
   const handleAddMonthlyReport = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!campusId) return;
     try {
       const docRef = await addDoc(collection(db, 'monthlyReports'), {
         ...newMonthlyReport,
+        campusId,
         submittedBy: profile?.uid,
         timestamp: serverTimestamp()
       });
@@ -301,6 +313,7 @@ export default function SafaPanel() {
       const newReport: MonthlyReport = {
         id: docRef.id,
         ...newMonthlyReport,
+        campusId,
         submittedBy: profile?.uid || '',
         timestamp: new Date()
       };
@@ -315,13 +328,18 @@ export default function SafaPanel() {
 
   const handleAddClub = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!campusId) return;
     try {
-      const docRef = await addDoc(collection(db, 'clubs'), newClub);
+      const docRef = await addDoc(collection(db, 'clubs'), {
+        ...newClub,
+        campusId
+      });
       
       // Update local state
       const addedClub: Club = {
         id: docRef.id,
         ...newClub,
+        campusId,
         totalPoints: 0
       };
       setClubs(prev => [...prev, addedClub]);
@@ -335,13 +353,18 @@ export default function SafaPanel() {
 
   const handleAddClubMember = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!campusId) return;
     try {
-      const docRef = await addDoc(collection(db, 'clubMembers'), newClubMember);
+      const docRef = await addDoc(collection(db, 'clubMembers'), {
+        ...newClubMember,
+        campusId
+      });
       
       // Update local state
       const addedMember: ClubMember = {
         id: docRef.id,
-        ...newClubMember
+        ...newClubMember,
+        campusId
       };
       setClubMembers(prev => [...prev, addedMember]);
 
@@ -354,13 +377,18 @@ export default function SafaPanel() {
 
   const handleAddBoard = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!campusId) return;
     try {
-      const docRef = await addDoc(collection(db, 'boards'), newBoard);
+      const docRef = await addDoc(collection(db, 'boards'), {
+        ...newBoard,
+        campusId
+      });
       
       // Update local state
       const addedBoard: Board = {
         id: docRef.id,
-        ...newBoard
+        ...newBoard,
+        campusId
       };
       setBoards(prev => [...prev, addedBoard]);
 
@@ -373,13 +401,18 @@ export default function SafaPanel() {
 
   const handleAddBoardMember = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!campusId) return;
     try {
-      const docRef = await addDoc(collection(db, 'boardMembers'), newBoardMember);
+      const docRef = await addDoc(collection(db, 'boardMembers'), {
+        ...newBoardMember,
+        campusId
+      });
       
       // Update local state
       const addedMember: BoardMember = {
         id: docRef.id,
-        ...newBoardMember
+        ...newBoardMember,
+        campusId
       };
       setBoardMembers(prev => [...prev, addedMember]);
 
@@ -392,13 +425,18 @@ export default function SafaPanel() {
 
   const handleAddOfficeBearer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!campusId) return;
     try {
-      const docRef = await addDoc(collection(db, 'officeBearers'), newOfficeBearer);
+      const docRef = await addDoc(collection(db, 'officeBearers'), {
+        ...newOfficeBearer,
+        campusId
+      });
       
       // Update local state
       const addedBearer: OfficeBearer = {
         id: docRef.id,
-        ...newOfficeBearer
+        ...newOfficeBearer,
+        campusId
       };
       setOfficeBearers(prev => [...prev, addedBearer]);
 
@@ -423,11 +461,11 @@ export default function SafaPanel() {
         const batch = writeBatch(db);
         
         // Delete club point entries
-        const entriesSnap = await getDocs(query(collection(db, 'clubPointEntries'), where('clubId', '==', id)));
+        const entriesSnap = await getDocs(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId), where('clubId', '==', id)));
         entriesSnap.docs.forEach(d => batch.delete(d.ref));
         
         // Delete club members
-        const membersSnap = await getDocs(query(collection(db, 'clubMembers'), where('clubId', '==', id)));
+        const membersSnap = await getDocs(query(collection(db, 'clubMembers'), where('campusId', '==', campusId), where('clubId', '==', id)));
         membersSnap.docs.forEach(d => batch.delete(d.ref));
         
         // Delete the club itself
@@ -464,9 +502,9 @@ export default function SafaPanel() {
 
   // Auto-fetch photo from students collection based on admission number
   const fetchPhotoByAdmissionNumber = async (admissionNumber: string, setter: (data: { photoUrl?: string, name?: string }) => void) => {
-    if (!admissionNumber || admissionNumber.length < 2) return;
+    if (!admissionNumber || admissionNumber.length < 2 || !campusId) return;
     try {
-      const q = query(collection(db, 'students'), where('admissionNumber', '==', admissionNumber), limit(1));
+      const q = query(collection(db, 'students'), where('campusId', '==', campusId), where('admissionNumber', '==', admissionNumber), limit(1));
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const studentData = querySnapshot.docs[0].data();
@@ -482,9 +520,9 @@ export default function SafaPanel() {
 
   // Auto-fetch photo from users collection based on name
   const fetchPhotoByName = async (name: string, setter: (photoUrl: string) => void) => {
-    if (!name || name.length < 3) return;
+    if (!name || name.length < 3 || !campusId) return;
     try {
-      const q = query(collection(db, 'users'), where('displayName', '==', name), limit(1));
+      const q = query(collection(db, 'users'), where('campusId', '==', campusId), where('displayName', '==', name), limit(1));
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const userData = querySnapshot.docs[0].data();
@@ -524,6 +562,7 @@ export default function SafaPanel() {
 
   const handleAddProgram = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!campusId) return;
     try {
       let finalDate = newProgram.date;
       if (newProgram.useHijri) {
@@ -537,6 +576,7 @@ export default function SafaPanel() {
         location: newProgram.location,
         clubId: newProgram.clubId === 'other' ? undefined : newProgram.clubId,
         otherClubName: newProgram.clubId === 'other' ? newProgram.otherClubName : null,
+        campusId,
         addedBy: profile?.uid,
         timestamp: serverTimestamp()
       });
@@ -550,6 +590,7 @@ export default function SafaPanel() {
         location: newProgram.location,
         clubId: newProgram.clubId === 'other' ? undefined : newProgram.clubId,
         otherClubName: newProgram.clubId === 'other' ? newProgram.otherClubName : null,
+        campusId,
         addedBy: profile?.uid || '',
         timestamp: new Date()
       };
@@ -565,13 +606,14 @@ export default function SafaPanel() {
 
   const handleAddGallery = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newGallery.url) {
+    if (!newGallery.url || !campusId) {
       setStatus({ type: 'error', msg: 'Please select an image to upload.' });
       return;
     }
     try {
       const docRef = await addDoc(collection(db, 'gallery'), {
         ...newGallery,
+        campusId,
         uploadedBy: profile?.uid,
         timestamp: serverTimestamp()
       });
@@ -580,6 +622,7 @@ export default function SafaPanel() {
       const addedItem: GalleryItem = {
         id: docRef.id,
         ...newGallery,
+        campusId,
         uploadedBy: profile?.uid || '',
         timestamp: new Date()
       };
@@ -595,7 +638,7 @@ export default function SafaPanel() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-3xl font-black text-emerald-700">Safa Union</h2>
+        <h2 className="text-3xl font-black text-emerald-700">{studentUnionName}</h2>
         <div className="flex bg-stone-100 p-1 rounded-2xl overflow-x-auto">
           {[
             { id: 'programs', label: 'Programs', icon: Calendar },
@@ -657,7 +700,7 @@ export default function SafaPanel() {
                 >
                   <option value="">Select a Club</option>
                   {clubs.map(club => <option key={club.id} value={club.id}>{club.name}</option>)}
-                  <optgroup label="Safa Boards">
+                  <optgroup label={`${studentUnionName} Boards`}>
                     <option value="SRDB">SRDB</option>
                     <option value="LB">LB</option>
                     <option value="SAB">SAB</option>

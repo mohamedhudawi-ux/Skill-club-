@@ -35,6 +35,7 @@ import SubmitWork from './pages/SubmitWork';
 import GraceMarks from './pages/GraceMarks';
 import ResourceLibrary from './pages/ResourceLibrary';
 import StudentPortfolio from './pages/StudentPortfolio';
+import MasterDashboard from './pages/MasterDashboard';
 import { CCEMarksWrapper } from './components/CCEMarksWrapper';
 
 import ResumeBuilder from './pages/ResumeBuilder';
@@ -162,6 +163,11 @@ function AppRoutes() {
             <AdminCommandCenter />
           </ProtectedRoute>
         } />
+        <Route path="/master-dashboard" element={
+          <ProtectedRoute requiredRole="master_admin">
+            <MasterDashboard />
+          </ProtectedRoute>
+        } />
         <Route path="/admin/add-user" element={
           <ProtectedRoute requiredRole="admin">
             <AddUserPage />
@@ -226,13 +232,13 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <SettingsProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <SettingsProvider>
         <NotificationManager />
         <Router>
           <AppRoutes />
         </Router>
-      </AuthProvider>
-    </SettingsProvider>
+      </SettingsProvider>
+    </AuthProvider>
   );
 }

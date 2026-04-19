@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useSettings } from '../SettingsContext';
 import { Program, GalleryItem } from '../types';
@@ -9,8 +9,15 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { GalleryViewer } from '../components/GalleryViewer';
 
+import { useAuth } from '../AuthContext';
+
 export default function Home() {
-  const { siteContent } = useSettings();
+  const { campusId } = useAuth();
+  const { siteContent, currentCampus } = useSettings();
+
+  const studentUnionName = currentCampus?.studentUnionName || "SAFA Union";
+  const skillClubName = currentCampus?.skillClubName || "Skill Club";
+
   const [programs, setPrograms] = useState<Program[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -19,11 +26,12 @@ export default function Home() {
   useEffect(() => {
     const fetchHomeData = async () => {
       try {
-        const programsQ = query(collection(db, 'programs'), orderBy('date', 'asc'), limit(5));
+        if (!campusId) return;
+        const programsQ = query(collection(db, 'programs'), where('campusId', '==', campusId), orderBy('date', 'asc'), limit(5));
         const programsSnap = await getDocs(programsQ);
         setPrograms(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
 
-        const galleryQ = query(collection(db, 'gallery'), orderBy('timestamp', 'desc'), limit(4));
+        const galleryQ = query(collection(db, 'gallery'), where('campusId', '==', campusId), orderBy('timestamp', 'desc'), limit(4));
         const gallerySnap = await getDocs(galleryQ);
         setGallery(gallerySnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as GalleryItem)));
       } catch (error) {
@@ -32,7 +40,7 @@ export default function Home() {
     };
 
     fetchHomeData();
-  }, []);
+  }, [campusId]);
 
   const aboutCollege = siteContent.find(c => c.key === 'about_college')?.value;
   const aboutSafa = siteContent.find(c => c.key === 'about_safa')?.value;
@@ -55,10 +63,10 @@ export default function Home() {
         <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/60 to-transparent flex flex-col items-center justify-center text-center px-6">
           <div className="max-w-3xl text-white">
             <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tighter uppercase leading-none">
-              Skill Club <span className="text-emerald-400">Portal</span>
+              {skillClubName} <span className="text-emerald-400">Portal</span>
             </h1>
             <p className="text-xl md:text-2xl text-stone-300 font-medium mb-10 max-w-2xl mx-auto leading-relaxed">
-              Empowering students of Darul Huda Punganur through Safa Union.
+              Empowering students of {currentCampus?.name || "Darul Huda Punganur"} through {studentUnionName}.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link to="/dashboard">
@@ -79,7 +87,7 @@ export default function Home() {
               <BookOpen size={14} /> Our Institution
             </div>
             <h2 className="text-4xl md:text-5xl font-black text-stone-900 tracking-tight leading-none">
-              Darul Huda <span className="text-emerald-600">Punganur</span>
+              {currentCampus?.name || "Darul Huda Punganur"}
             </h2>
             <p className="text-lg text-stone-600 leading-relaxed">
               {aboutCollege || "Darul Huda Punganur is a premier educational institution dedicated to providing holistic education and fostering skill development among students."}
@@ -99,24 +107,24 @@ export default function Home() {
               Our <span className="text-emerald-400">Ecosystem</span>
             </h2>
             <p className="text-stone-400 text-lg max-w-2xl mx-auto">
-              A collaborative environment where Safa Union and Skill Club work together for student excellence.
+              A collaborative environment where {studentUnionName} and {skillClubName} work together for student excellence.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <Card className="p-10 bg-white/5 border-white/10 text-white space-y-6 hover:bg-white/10 transition-colors">
-              <img src={safaLogo || "https://ui-avatars.com/api/?name=Safa+Union&background=random"} alt="Safa Union" className="h-16 w-16 object-contain" />
-              <h3 className="text-3xl font-black tracking-tight">Safa Union</h3>
+              <img src={safaLogo || `https://ui-avatars.com/api/?name=${studentUnionName}&background=random`} alt={studentUnionName} className="h-16 w-16 object-contain" />
+              <h3 className="text-3xl font-black tracking-tight">{studentUnionName}</h3>
               <p className="text-stone-400 leading-relaxed">
-                {aboutSafa || "Safa Union is the executive student body that manages programs, events, and student welfare at Darul Huda Punganur."}
+                {aboutSafa || `${studentUnionName} is the executive student body that manages programs, events, and student welfare at ${currentCampus?.name || 'our institution'}.`}
               </p>
             </Card>
 
             <Card className="p-10 bg-white/5 border-white/10 text-white space-y-6 hover:bg-white/10 transition-colors">
-              <img src={skillclubLogo || "https://ui-avatars.com/api/?name=Skill+Club&background=random"} alt="Skill Club" className="h-16 w-16 object-contain" />
-              <h3 className="text-3xl font-black tracking-tight">Skill Club</h3>
+              <img src={skillclubLogo || `https://ui-avatars.com/api/?name=${skillClubName}&background=random`} alt={skillClubName} className="h-16 w-16 object-contain" />
+              <h3 className="text-3xl font-black tracking-tight">{skillClubName}</h3>
               <p className="text-stone-400 leading-relaxed">
-                {aboutSkillClub || "Skill Club is a platform designed to identify, nurture, and reward the diverse talents of our students through various activities."}
+                {aboutSkillClub || `${skillClubName} is a platform designed to identify, nurture, and reward the diverse talents of our students through various activities.`}
               </p>
             </Card>
           </div>
@@ -156,7 +164,7 @@ export default function Home() {
         <div className="space-y-8">
           <div className="flex items-center justify-between">
             <h3 className="text-3xl font-black text-stone-900 flex items-center gap-3">
-              <ImageIcon className="text-emerald-600" /> Gallery
+              <ImageIcon className="text-emerald-600" /> {studentUnionName} Gallery
             </h3>
           </div>
           <div className="grid grid-cols-2 gap-4">

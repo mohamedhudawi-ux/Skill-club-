@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { collection, doc, setDoc, writeBatch, addDoc, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, writeBatch, addDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { Moon } from 'lucide-react';
 import { useSettings } from '../../SettingsContext';
+import { useAuth } from '../../AuthContext';
 
 export default function SettingsPage() {
+  const { campusId } = useAuth();
   const { settings, siteContent, refreshContent } = useSettings();
   const [maintenance, setMaintenance] = useState(false);
   const [registration, setRegistration] = useState(true);
@@ -33,7 +35,8 @@ export default function SettingsPage() {
 
   const handleUpdateSetting = async (key: string, value: any) => {
     try {
-      await setDoc(doc(db, 'settings', 'system'), { [key]: value }, { merge: true });
+      const settingsId = campusId || 'system';
+      await setDoc(doc(db, 'settings', settingsId), { [key]: value }, { merge: true });
       await refreshContent(true);
       
       setStatus({ type: 'success', msg: 'Setting updated successfully!' });
@@ -51,7 +54,11 @@ export default function SettingsPage() {
       if (existing) {
         await setDoc(doc(db, 'siteContent', existing.id), { value }, { merge: true });
       } else {
-        await addDoc(collection(db, 'siteContent'), { key, value });
+        await addDoc(collection(db, 'siteContent'), { 
+          key, 
+          value,
+          campusId: campusId || null 
+        });
       }
       await refreshContent(true);
       setStatus({ type: 'success', msg: 'Content updated successfully!' });
@@ -63,13 +70,16 @@ export default function SettingsPage() {
   };
 
   const handleResetPortal = async () => {
+    if (!campusId) return;
     try {
-      const collections = ['users', 'students', 'staff', 'clubs', 'boards', 'siteContent', 'programs', 'gallery', 'skillClubEntries'];
+      const collections = ['users', 'students', 'staff', 'clubs', 'boards', 'siteContent', 'programs', 'gallery', 'skillClubEntries', 'workSubmissions', 'graceMarkApplications', 'notifications', 'queries'];
       const batch = writeBatch(db);
       
       for (const coll of collections) {
-        const snapshot = await getDocs(collection(db, coll));
+        const snapshot = await getDocs(query(collection(db, coll), where('campusId', '==', campusId)));
         snapshot.docs.forEach(doc => {
+          // Don't delete master admins or the current user if they are the only admin
+          if (coll === 'users' && (doc.data().role === 'master_admin')) return;
           batch.delete(doc.ref);
         });
       }

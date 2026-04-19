@@ -1,9 +1,24 @@
-export type UserRole = 'student' | 'staff' | 'safa' | 'admin' | 'academic' | 'treasurer';
+export type UserRole = 'student' | 'staff' | 'safa' | 'admin' | 'academic' | 'treasurer' | 'master_admin';
+
+export interface Campus {
+  id: string;
+  name: string;
+  location?: string;
+  skillClubName?: string;
+  studentUnionName?: string;
+  description?: string;
+  logoUrl?: string;
+  status: 'active' | 'inactive';
+  skillClubCategories?: string[];
+  skillClubRules?: SkillClubRule[];
+  createdAt: string;
+}
 
 export interface UserProfile {
   uid: string;
   email: string;
   role: UserRole;
+  campusId?: string; // Optional for master_admin
   displayName?: string;
   photoURL?: string;
   admissionNumber?: string;
@@ -22,6 +37,7 @@ export interface UserProfile {
 export interface Student {
   id?: string;
   uid?: string;
+  campusId: string;
   admissionNumber: string;
   name: string;
   dob: string;
@@ -53,6 +69,7 @@ export type SkillClubCategory =
 
 export interface SkillClubEntry {
   id?: string;
+  campusId: string;
   studentAdmissionNumber: string;
   category: SkillClubCategory;
   points: number;
@@ -63,6 +80,7 @@ export interface SkillClubEntry {
 
 export interface WorkSubmission {
   id: string;
+  campusId: string;
   studentUid: string;
   studentName: string;
   admissionNumber: string;
@@ -173,6 +191,7 @@ export const SKILL_CLUB_RULES: SkillClubRule[] = [
 
 export interface Program {
   id?: string;
+  campusId: string;
   title: string;
   date: string;
   clubId?: string;
@@ -188,6 +207,7 @@ export interface Program {
 
 export interface GalleryItem {
   id?: string;
+  campusId: string;
   url: string;
   caption?: string;
   uploadedBy: string;
@@ -196,6 +216,7 @@ export interface GalleryItem {
 
 export interface Club {
   id: string;
+  campusId: string;
   name: string;
   description: string;
   logoUrl?: string;
@@ -205,6 +226,7 @@ export interface Club {
 
 export interface ClubPointEntry {
   id?: string;
+  campusId: string;
   clubId: string;
   points: number;
   description: string;
@@ -214,6 +236,7 @@ export interface ClubPointEntry {
 
 export interface MonthlyReport {
   id?: string;
+  campusId: string;
   month: string;
   performanceReportText: string;
   financialReportText: string;
@@ -223,6 +246,7 @@ export interface MonthlyReport {
 
 export interface Transaction {
   id?: string;
+  campusId: string;
   type: 'income' | 'expense';
   amount: number;
   description: string;
@@ -233,6 +257,7 @@ export interface Transaction {
 
 export interface ClubMember {
   id: string;
+  campusId: string;
   clubId: string;
   name: string;
   position: string;
@@ -241,12 +266,14 @@ export interface ClubMember {
 
 export interface Board {
   id: string;
+  campusId: string;
   name: string;
   description: string;
 }
 
 export interface BoardMember {
   id: string;
+  campusId: string;
   boardId: string;
   name: string;
   position: string;
@@ -255,6 +282,7 @@ export interface BoardMember {
 
 export interface OfficeBearer {
   id: string;
+  campusId: string;
   name: string;
   position: string;
   photoUrl?: string;
@@ -262,12 +290,14 @@ export interface OfficeBearer {
 
 export interface SiteContent {
   id: string;
+  campusId?: string; // Some settings might be global, but most campus-specific
   key: 'about_college' | 'about_union' | 'college_logo' | 'safa_logo' | 'skillclub_logo' | 'about_safa' | 'about_dhpc' | 'about_skillclub' | 'skill_club_rules' | 'whatsapp_link' | 'social_facebook' | 'social_instagram' | 'social_telegram' | 'social_phone' | 'social_gmail' | 'social_whatsapp' | 'payment_qr_code' | 'payment_number' | 'hijri_offset' | 'college_photo';
   value: string;
 }
 
 export interface Query {
   id?: string;
+  campusId: string;
   studentUid: string;
   studentName: string;
   message: string;
@@ -279,6 +309,7 @@ export interface Query {
 
 export interface Notification {
   id?: string;
+  campusId: string;
   recipientUid: string;
   title: string;
   message: string;
@@ -288,6 +319,7 @@ export interface Notification {
 
 export interface GraceMarkApplication {
   id?: string;
+  campusId: string;
   studentUid: string;
   studentName: string;
   admissionNumber: string;
@@ -303,6 +335,7 @@ export interface GraceMarkApplication {
 
 export interface Resource {
   id?: string;
+  campusId: string;
   title: string;
   description: string;
   fileUrl: string;
@@ -320,6 +353,7 @@ export const CLASS_LIST = ['SS2', 'SS1', 'S5', 'S4', 'S3', 'S2A', 'S2B', 'S1A', 
 
 export interface CCEMark {
   id?: string;
+  campusId: string;
   studentId: string;
   studentName: string;
   class: string;

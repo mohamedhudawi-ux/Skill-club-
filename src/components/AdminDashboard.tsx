@@ -24,7 +24,7 @@ import { BrandingHeader } from './BrandingHeader';
 
 export function AdminDashboard() {
   const navigate = useNavigate();
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, loading: authLoading, campusId } = useAuth();
   const { siteContent, loading: settingsLoading } = useSettings();
   const [stats, setStats] = useState({
     totalStudents: 0,
@@ -53,6 +53,7 @@ export function AdminDashboard() {
     if (authLoading || settingsLoading) return;
     
     const fetchData = async () => {
+      if (!campusId) return;
       setLoading(true);
       setError(null);
 
@@ -63,27 +64,21 @@ export function AdminDashboard() {
       ];
 
       for (const col of collections) {
-        const cached = getCachedData(col.name);
-        if (cached) {
-          col.setter({ size: cached.length });
-        } else {
-          try {
-            const snap = await getDocs(collection(db, col.name));
-            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setCachedData(col.name, data);
-            col.setter({ size: data.length });
-          } catch (err: any) {
-            handleFirestoreError(err, OperationType.LIST, col.name);
-          }
+        try {
+          const snap = await getDocs(query(collection(db, col.name), where('campusId', '==', campusId)));
+          const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          col.setter({ size: data.length });
+        } catch (err: any) {
+          handleFirestoreError(err, OperationType.LIST, col.name);
         }
       }
 
       // Fetch pending counts and recent data
       try {
         const [queriesSnap, submissionsSnap, graceMarksSnap] = await Promise.all([
-          getDocs(query(collection(db, 'queries'), where('status', '==', 'pending'))),
-          getDocs(query(collection(db, 'workSubmissions'), where('status', '==', 'pending'))),
-          getDocs(query(collection(db, 'graceMarkApplications'), where('status', '==', 'pending')))
+          getDocs(query(collection(db, 'queries'), where('campusId', '==', campusId), where('status', '==', 'pending'))),
+          getDocs(query(collection(db, 'workSubmissions'), where('campusId', '==', campusId), where('status', '==', 'pending'))),
+          getDocs(query(collection(db, 'graceMarkApplications'), where('campusId', '==', campusId), where('status', '==', 'pending')))
         ]);
 
         setStats(prev => ({
@@ -97,7 +92,7 @@ export function AdminDashboard() {
         setSubmissions(submissionsSnap.docs.slice(0, 5).map(doc => ({ id: doc.id, ...doc.data() } as WorkSubmission)));
 
         // Fetch top students
-        const topSnap = await getDocs(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(5)));
+        const topSnap = await getDocs(query(collection(db, 'students'), where('campusId', '==', campusId), orderBy('totalPoints', 'desc'), limit(5)));
         setStats(prev => ({ ...prev, topStudents: topSnap.docs.map(doc => doc.data() as Student) }));
 
       } catch (err: any) {
@@ -108,7 +103,7 @@ export function AdminDashboard() {
     };
 
     fetchData();
-  }, [authLoading, settingsLoading]);
+  }, [authLoading, settingsLoading, campusId]);
 
   const handleReply = async (queryId: string, reply: string) => {
     if (!reply.trim()) return;

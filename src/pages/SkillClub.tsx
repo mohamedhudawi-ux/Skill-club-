@@ -5,6 +5,7 @@ import { Student, Club, ClubPointEntry, SkillClubEntry } from '../types';
 import { Trophy, Medal, Award, Star, Search, Trash2, BookOpen } from 'lucide-react';
 import { Card } from '../components/Card';
 import { useAuth } from '../AuthContext';
+import { useSettings } from '../SettingsContext';
 import { Button } from '../components/Button';
 import { SKILL_CLUB_CATEGORIES } from '../types';
 import { safeToDate } from '../utils/date';
@@ -17,12 +18,19 @@ export default function SkillClub() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
-  const { profile, isSafa, isAdmin } = useAuth();
+  const { profile, isSafa, isAdmin, campusId } = useAuth();
+  const { currentCampus } = useSettings();
 
   useEffect(() => {
     const fetchRankings = async () => {
+      if (!campusId) return;
       try {
-        const q = query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(100));
+        const q = query(
+          collection(db, 'students'), 
+          where('campusId', '==', campusId),
+          orderBy('totalPoints', 'desc'), 
+          limit(100)
+        );
         const snapshot = await getDocs(q);
         setRankings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
       } catch (error) {
@@ -32,24 +40,39 @@ export default function SkillClub() {
       }
     };
     fetchRankings();
-  }, []);
+  }, [campusId]);
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!campusId) return;
       try {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const clubsSnap = await getDocs(query(collection(db, 'clubs'), limit(50)));
+        const clubsSnap = await getDocs(query(
+          collection(db, 'clubs'), 
+          where('campusId', '==', campusId),
+          limit(50)
+        ));
         setClubs(clubsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
 
         const clubEntriesSnap = await getDocs(
-          query(collection(db, 'clubPointEntries'), where('timestamp', '>=', startOfMonth), limit(500))
+          query(
+            collection(db, 'clubPointEntries'), 
+            where('campusId', '==', campusId),
+            where('timestamp', '>=', startOfMonth), 
+            limit(500)
+          )
         );
         setClubPointEntries(clubEntriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubPointEntry)));
 
         const skillEntriesSnap = await getDocs(
-          query(collection(db, 'skillClubEntries'), where('timestamp', '>=', startOfMonth), limit(500))
+          query(
+            collection(db, 'skillClubEntries'), 
+            where('campusId', '==', campusId),
+            where('timestamp', '>=', startOfMonth), 
+            limit(500)
+          )
         );
         setSkillClubEntries(skillEntriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
       } catch (error) {
@@ -57,22 +80,32 @@ export default function SkillClub() {
       }
     };
     fetchData();
-  }, []);
+  }, [campusId]);
 
   const handleClearAllPoints = async () => {
+    if (!campusId) return;
     try {
       setLoading(true);
       // Only fetch students who actually have points or badges to clear
-      const studentsQuery = query(collection(db, 'students'), where('totalPoints', '>', 0));
+      const studentsQuery = query(
+        collection(db, 'students'), 
+        where('campusId', '==', campusId),
+        where('totalPoints', '>', 0)
+      );
       const studentsSnap = await getDocs(studentsQuery);
       
-      // For skillClubEntries, fetch only what's necessary or in chunks
-      // To avoid massive reads, we can limit this or only clear recent ones if that's acceptable,
-      // but "Clear All" usually means everything. Let's fetch in a way that's as efficient as possible.
-      const entriesSnap = await getDocs(query(collection(db, 'skillClubEntries'), limit(1000)));
+      const entriesSnap = await getDocs(query(
+        collection(db, 'skillClubEntries'), 
+        where('campusId', '==', campusId),
+        limit(1000)
+      ));
       
       // Only fetch users who have points or badges
-      const usersQuery = query(collection(db, 'users'), where('totalPoints', '>', 0));
+      const usersQuery = query(
+        collection(db, 'users'), 
+        where('campusId', '==', campusId),
+        where('totalPoints', '>', 0)
+      );
       const usersSnap = await getDocs(usersQuery);
       
       const batches = [];
@@ -167,6 +200,9 @@ export default function SkillClub() {
 
   const sortedClubs = [...clubs].sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
 
+  // Dynamic Categories from Campus Settings
+  const categories = currentCampus?.skillClubRules?.map(r => r.category) || SKILL_CLUB_CATEGORIES;
+
   // Class-wise
   const studentsByClass = rankings.reduce((acc, student) => {
     const className = student.class || 'Unassigned';
@@ -180,7 +216,7 @@ export default function SkillClub() {
   });
 
   // Category-wise
-  const categoryToppers = SKILL_CLUB_CATEGORIES.map(category => {
+  const categoryToppers = categories.map(category => {
     const topStudents = rankings
       .filter(s => (s.categoryPoints?.[category] || 0) > 0)
       .sort((a, b) => (b.categoryPoints?.[category] || 0) - (a.categoryPoints?.[category] || 0))

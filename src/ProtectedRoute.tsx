@@ -25,7 +25,8 @@ export default function ProtectedRoute({
   }
 
   const hasAccess = () => {
-    if (isAdmin) return true;
+    if (requiredRole === 'master_admin') return profile?.role === 'master_admin'; // MUST explicitly check master admin
+    if (isAdmin) return true; // Normal admins have access to all below
     if (requiredRole === 'admin') return isAdmin;
     if (requiredRole === 'staff') return isStaff;
     if (requiredRole === 'academic') return isAcademic || isStaff;

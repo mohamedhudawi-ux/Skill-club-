@@ -3,12 +3,14 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, collection } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { UserRole } from '../../types';
+import { useAuth } from '../../AuthContext';
 import { Button } from '../../components/Button';
 import { ImageUpload } from '../../components/ImageUpload';
 import { Card } from '../../components/Card';
 import { CLASS_LIST } from '../../constants';
 
 export default function AddUserPage() {
+  const { campusId } = useAuth();
   const [newUserPhoto, setNewUserPhoto] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -59,7 +61,8 @@ export default function AddUserPage() {
         role,
         displayName,
         photoURL: newUserPhoto,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        campusId: campusId
       });
       setStatus({ type: 'success', message: `User added successfully! Default password: ${password}` });
       e.currentTarget.reset();

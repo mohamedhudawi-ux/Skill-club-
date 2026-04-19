@@ -26,7 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, isAdmin, isStaff, isSafa, isStudent, isAcademic } = useAuth();
+  const { profile, isAdmin, isStaff, isSafa, isStudent, isAcademic, campusId } = useAuth();
   const { settings, siteContent: content } = useSettings();
   const [student, setStudent] = useState<Student | null>(null);
   const [entries, setEntries] = useState<SkillClubEntry[]>([]);
@@ -71,9 +71,9 @@ export default function Dashboard() {
 
   // Scoreboard fetch
   useEffect(() => {
-    if (activeTab === 'scoreboard' && isStudent) {
+    if (activeTab === 'scoreboard' && isStudent && campusId) {
       const fetchScoreboard = async () => {
-        const qTop = query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(10));
+        const qTop = query(collection(db, 'students'), where('campusId', '==', campusId), orderBy('totalPoints', 'desc'), limit(10));
         const topSnap = await getDocs(qTop);
         setTopStudents(topSnap.docs.map(doc => doc.data() as Student));
 
@@ -81,6 +81,7 @@ export default function Dashboard() {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const qMonthly = query(
           collection(db, 'skillClubEntries'),
+          where('campusId', '==', campusId),
           where('timestamp', '>=', startOfMonth),
           orderBy('timestamp', 'desc'),
           limit(100)
@@ -101,7 +102,7 @@ export default function Dashboard() {
         setTopMonthly(sorted);
 
         if (student?.class) {
-          const qClass = query(collection(db, 'students'), where('class', '==', student.class), limit(50));
+          const qClass = query(collection(db, 'students'), where('campusId', '==', campusId), where('class', '==', student.class), limit(50));
           const classSnap = await getDocs(qClass);
           const students = classSnap.docs.map(d => d.data() as Student);
           students.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
@@ -114,10 +115,11 @@ export default function Dashboard() {
 
   // Entries and Programs fetch
   useEffect(() => {
-    if (activeTab === 'overview' && isStudent && profile?.admissionNumber) {
+    if (activeTab === 'overview' && isStudent && profile?.admissionNumber && campusId) {
       const fetchOverview = async () => {
         const qEntries = query(
           collection(db, 'skillClubEntries'),
+          where('campusId', '==', campusId),
           where('studentAdmissionNumber', '==', profile.admissionNumber),
           orderBy('timestamp', 'desc'),
           limit(20)
@@ -125,7 +127,7 @@ export default function Dashboard() {
         const entriesSnap = await getDocs(qEntries);
         setEntries(entriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
 
-        const qPrograms = query(collection(db, 'programs'), where('date', '>=', new Date().toISOString().split('T')[0]), orderBy('date', 'asc'), limit(5));
+        const qPrograms = query(collection(db, 'programs'), where('campusId', '==', campusId), where('date', '>=', new Date().toISOString().split('T')[0]), orderBy('date', 'asc'), limit(5));
         const programsSnap = await getDocs(qPrograms);
         setPrograms(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       };
@@ -135,9 +137,9 @@ export default function Dashboard() {
 
   // Staff Directory fetch
   useEffect(() => {
-    if (activeTab === 'staff-directory' && isStudent) {
+    if (activeTab === 'staff-directory' && isStudent && campusId) {
       const fetchStaff = async () => {
-        const qStaff = query(collection(db, 'users'), where('role', 'in', ['staff', 'academic', 'safa']));
+        const qStaff = query(collection(db, 'users'), where('campusId', '==', campusId), where('role', 'in', ['staff', 'academic', 'safa']));
         const staffSnap = await getDocs(qStaff);
         setStaffList(staffSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       };
@@ -160,18 +162,25 @@ export default function Dashboard() {
 
     // --- STUDENT SPECIFIC DATA FETCHING ---
     const fetchBaseData = async () => {
-      if (!isStudent || !profile?.admissionNumber) return;
+      if (!isStudent || !profile?.admissionNumber || !campusId) return;
 
       try {
         // Fetch Student Profile
         const studentDoc = await getDoc(doc(db, 'students', profile.admissionNumber));
         if (studentDoc.exists()) {
-          setStudent(studentDoc.data() as Student);
+          const studentData = studentDoc.data() as Student;
+          // Verify campus matches
+          if (studentData.campusId === campusId) {
+            setStudent(studentData);
+          } else {
+            console.error('Student campus mismatch');
+          }
         }
 
         // Fetch Notifications
         const qNotify = query(
           collection(db, 'notifications'),
+          where('campusId', '==', campusId),
           where('recipientUid', '==', profile.uid),
           orderBy('timestamp', 'desc'),
           limit(10)

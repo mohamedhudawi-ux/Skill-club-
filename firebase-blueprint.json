@@ -248,9 +248,28 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["studentId", "class", "subject", "term", "mark", "uploadedBy", "timestamp"]
+    },
+    "Campus": {
+      "title": "Campus",
+      "description": "Educational campus details.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "location": { "type": "string" },
+        "skillClubName": { "type": "string" },
+        "description": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "status"]
     }
   },
   "firestore": {
+    "/campuses/{campusId}": {
+      "schema": "Campus",
+      "description": "Campus information"
+    },
     "/users/{uid}": {
       "schema": "User",
       "description": "User profiles"

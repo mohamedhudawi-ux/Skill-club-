@@ -16,13 +16,37 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, loading: authLoading } = useAuth();
-  const from = location.state?.from?.pathname || '/dashboard';
-
+  
   React.useEffect(() => {
     if (!authLoading && profile) {
-      navigate(from, { replace: true });
+      let targetPath = location.state?.from?.pathname;
+      
+      // If there's no specific path requested (or it's just /), route based on role
+      // Note: If they specifically requested a URL like /gallery, let them go there.
+      if (!targetPath || targetPath === '/') {
+        switch (profile.role) {
+          case 'master_admin':
+            targetPath = '/master-dashboard';
+            break;
+          case 'admin':
+            targetPath = '/admin';
+            break;
+          case 'staff':
+          case 'academic':
+            targetPath = '/staff';
+            break;
+          case 'safa':
+            targetPath = '/safa';
+            break;
+          default:
+            targetPath = '/dashboard';
+            break;
+        }
+      }
+      
+      navigate(targetPath, { replace: true });
     }
-  }, [profile, authLoading, navigate, from]);
+  }, [profile, authLoading, navigate, location.state]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +66,7 @@ export default function Login() {
       } else {
         await signInWithEmailAndPassword(auth, trimmedEmail, password);
       }
-      navigate(from, { replace: true });
+      // Navigation is handled by the useEffect watching `profile`
     } catch (error: any) {
       console.error('Auth failed:', error);
       let message = error.message;
@@ -87,7 +111,7 @@ export default function Login() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      navigate(from, { replace: true });
+      // Navigation is handled by the useEffect watching `profile`
     } catch (error: any) {
       console.error('Google Auth failed:', error);
       setError(error.message || 'Failed to sign in with Google.');

@@ -5,8 +5,11 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { ImageUpload } from '../../components/ImageUpload';
 import { useSettings } from '../../SettingsContext';
+import { useAuth } from '../../AuthContext';
+import { Campus } from '../../types';
 
 export default function ContentPage() {
+  const { campusId } = useAuth();
   const { siteContent, refreshContent } = useSettings();
   const [localContent, setLocalContent] = useState<any[]>([]);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
@@ -31,7 +34,10 @@ export default function ContentPage() {
 
   const handleAddContent = async (data: any) => {
     try {
-      await addDoc(collection(db, 'siteContent'), data);
+      await addDoc(collection(db, 'siteContent'), { 
+        ...data, 
+        campusId: campusId || null 
+      });
       await refreshContent(true);
       setStatus({ type: 'success', msg: 'Content added successfully!' });
       setTimeout(() => setStatus(null), 3000);

@@ -18,6 +18,7 @@ import {
   Instagram,
   Mail,
   Send,
+  Globe,
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useSettings } from '../SettingsContext';
@@ -25,7 +26,7 @@ import { auth } from '../firebase';
 import { getFullHijriDate } from '../utils/hijri';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { profile, isAdmin, isStaff, isSafa, isAcademic } = useAuth();
+  const { profile, isAdmin, isStaff, isSafa, isAcademic, isMasterAdmin } = useAuth();
   const { siteContent } = useSettings();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
@@ -97,6 +98,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       navigation.push(
         { name: 'Academic Panel', href: '/academic', icon: FileText, group: 'Portal' },
         { name: 'Student Management', href: '/admin/students', icon: Users, group: 'Portal' }
+      );
+    }
+    
+    if (isMasterAdmin) {
+      navigation.push(
+        { name: 'Master Board', href: '/master', icon: Globe, group: 'Master' }
       );
     }
     

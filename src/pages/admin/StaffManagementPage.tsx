@@ -9,7 +9,10 @@ import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { ImageUpload } from '../../components/ImageUpload';
 
+import { useAuth } from '../../AuthContext';
+
 export default function StaffManagementPage() {
+  const { campusId } = useAuth();
   const [staff, setStaff] = React.useState<UserProfile[]>([]);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [newStaffData, setNewStaffData] = useState({ name: '', email: '', photoURL: '', phone: '' });
@@ -22,16 +25,17 @@ export default function StaffManagementPage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
   React.useEffect(() => {
+    if (!campusId) return;
     const fetchStaff = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['staff', 'academic', 'safa'])));
+        const snap = await getDocs(query(collection(db, 'users'), where('campusId', '==', campusId), where('role', 'in', ['staff', 'academic', 'safa'])));
         setStaff(snap.docs.map(doc => ({ ...doc.data(), uid: doc.id } as UserProfile)));
       } catch (error) {
         console.error('Error fetching staff:', error);
       }
     };
     fetchStaff();
-  }, []);
+  }, [campusId]);
 
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +70,7 @@ export default function StaffManagementPage() {
         photoURL: newStaffData.photoURL,
         phone: newStaffData.phone,
         role: 'staff',
+        campusId,
         createdAt: new Date().toISOString()
       });
       

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Program, Club } from '../types';
 import { Calendar as CalendarIcon, Clock, MapPin, ChevronRight, ChevronLeft, Filter } from 'lucide-react';
@@ -14,11 +14,10 @@ import {
 } from 'date-fns';
 
 export default function Calendar() {
+  const { isAdmin, campusId } = useAuth();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [loading, setLoading] = useState(true);
-  const { isAdmin } = useAuth();
-  
   const [currentDate, setCurrentDate] = useState(new Date());
 
   // Define colors for clubs
@@ -45,12 +44,13 @@ export default function Calendar() {
   const [eventType, setEventType] = useState<string>('all');
 
   useEffect(() => {
+    if (!campusId) return;
     const fetchPrograms = async () => {
       try {
         setLoading(true);
         const [programsSnap, clubsSnap] = await Promise.all([
-          getDocs(query(collection(db, 'programs'), orderBy('date', 'asc'))),
-          getDocs(collection(db, 'clubs'))
+          getDocs(query(collection(db, 'programs'), where('campusId', '==', campusId), orderBy('date', 'asc'))),
+          getDocs(query(collection(db, 'clubs'), where('campusId', '==', campusId)))
         ]);
         setPrograms(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
         setClubs(clubsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Club)));
@@ -61,7 +61,7 @@ export default function Calendar() {
       }
     };
     fetchPrograms();
-  }, []);
+  }, [campusId]);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);

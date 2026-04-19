@@ -17,7 +17,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
 export default function StudentManagementPage() {
-  const { isAdmin, isStaff } = useAuth();
+  const { isAdmin, isStaff, campusId } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
@@ -62,7 +62,7 @@ export default function StudentManagementPage() {
   };
 
   const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0 || !campusId) return;
     setBulkDeleteConfirm(false);
     setIsBulkUpdating(true);
     setStatus({ type: 'success', msg: `Deleting ${selectedIds.size} students...` });
@@ -78,7 +78,7 @@ export default function StudentManagementPage() {
 
       for (let i = 0; i < idArray.length; i += 30) {
         const chunk = idArray.slice(i, i + 30);
-        const studentsQuery = query(collection(db, 'students'), where(documentId(), 'in', chunk));
+        const studentsQuery = query(collection(db, 'students'), where('campusId', '==', campusId), where(documentId(), 'in', chunk));
         const studentDocs = await getDocs(studentsQuery);
         
         console.log(`Found ${studentDocs.size} student docs for chunk ${i/30 + 1}`);
@@ -97,7 +97,7 @@ export default function StudentManagementPage() {
         console.log('Finding user docs for admission numbers:', admissionNumbers);
         for (let i = 0; i < admissionNumbers.length; i += 30) {
           const chunk = admissionNumbers.slice(i, i + 30);
-          const usersQuery = query(collection(db, 'users'), where('admissionNumber', 'in', chunk));
+          const usersQuery = query(collection(db, 'users'), where('campusId', '==', campusId), where('admissionNumber', 'in', chunk));
           const userDocs = await getDocs(usersQuery);
           
           console.log(`Found ${userDocs.size} user docs for chunk ${i/30 + 1}`);
@@ -146,7 +146,7 @@ export default function StudentManagementPage() {
   };
 
   const handleBulkClassChange = async () => {
-    if (selectedIds.size === 0 || !bulkClass) return;
+    if (selectedIds.size === 0 || !bulkClass || !campusId) return;
     setBulkClassConfirm(false);
     setIsBulkUpdating(true);
     setStatus({ type: 'success', msg: `Updating class to ${bulkClass} for ${selectedIds.size} students...` });
@@ -159,7 +159,7 @@ export default function StudentManagementPage() {
       const idArray = Array.from(selectedIds);
       for (let i = 0; i < idArray.length; i += 30) {
         const chunk = idArray.slice(i, i + 30);
-        const studentsQuery = query(collection(db, 'students'), where(documentId(), 'in', chunk));
+        const studentsQuery = query(collection(db, 'students'), where('campusId', '==', campusId), where(documentId(), 'in', chunk));
         const studentDocs = await getDocs(studentsQuery);
         
         studentDocs.forEach(doc => {
@@ -175,7 +175,7 @@ export default function StudentManagementPage() {
       if (admissionNumbers.length > 0) {
         for (let i = 0; i < admissionNumbers.length; i += 30) {
           const chunk = admissionNumbers.slice(i, i + 30);
-          const usersQuery = query(collection(db, 'users'), where('admissionNumber', 'in', chunk));
+          const usersQuery = query(collection(db, 'users'), where('campusId', '==', campusId), where('admissionNumber', 'in', chunk));
           const userDocs = await getDocs(usersQuery);
           
           userDocs.forEach(userDoc => {
@@ -199,6 +199,7 @@ export default function StudentManagementPage() {
   };
 
   const fetchStudents = async (isNext = false) => {
+    if (!campusId) return;
     try {
       setLoading(true);
       
@@ -211,14 +212,14 @@ export default function StudentManagementPage() {
 
       // Special case: Exact match for admission number
       if (isAdmissionSearch && !isNext) {
-        const qAdm = query(collection(db, 'students'), where('admissionNumber', '==', trimmedSearch));
+        const qAdm = query(collection(db, 'students'), where('campusId', '==', campusId), where('admissionNumber', '==', trimmedSearch));
         const snapAdm = await getDocs(qAdm);
         newStudents = snapAdm.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
         nextLastDoc = null;
         nextHasMore = false;
       } else {
         // General case: Paginated list with optional class filter and name prefix search
-        const constraints: any[] = [orderBy('name', 'asc'), limit(50)];
+        const constraints: any[] = [where('campusId', '==', campusId), orderBy('name', 'asc'), limit(50)];
         
         if (selectedClass !== 'All') {
           constraints.push(where('class', '==', selectedClass));
@@ -287,6 +288,7 @@ export default function StudentManagementPage() {
   };
 
   const handleBulkImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!campusId) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -312,6 +314,7 @@ export default function StudentManagementPage() {
               totalPoints: 0,
               categoryPoints: {},
               badges: [],
+              campusId: campusId!,
               createdAt: new Date().toISOString()
             }));
             setPendingStudents(parsed);
@@ -337,6 +340,7 @@ export default function StudentManagementPage() {
           totalPoints: 0,
           categoryPoints: {},
           badges: [],
+          campusId: campusId!,
           createdAt: new Date().toISOString()
         }));
         setPendingStudents(parsed);
@@ -389,6 +393,7 @@ export default function StudentManagementPage() {
                   totalPoints: 0,
                   categoryPoints: {},
                   badges: [],
+                  campusId: campusId!,
                   createdAt: new Date().toISOString()
                 });
               }
@@ -414,8 +419,9 @@ export default function StudentManagementPage() {
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
-      // Find the user by admissionNumber
-      const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', deleteConfirm));
+      if (!campusId) return;
+      // Find the user by admissionNumber and campusId
+      const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', deleteConfirm), where('campusId', '==', campusId));
       const userDocs = await getDocs(usersQuery);
       
       if (!userDocs.empty) {
@@ -448,7 +454,7 @@ export default function StudentManagementPage() {
 
   const handleUpdateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingStudent) return;
+    if (!editingStudent || !campusId) return;
     setIsUpdating(true);
     try {
       const studentRef = doc(db, 'students', editingStudent.id!);
@@ -467,7 +473,7 @@ export default function StudentManagementPage() {
 
       // Also update in users collection if exists
       if (editingStudent.admissionNumber) {
-        const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', editingStudent.admissionNumber));
+        const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', editingStudent.admissionNumber), where('campusId', '==', campusId));
         const userDocs = await getDocs(usersQuery);
         if (!userDocs.empty) {
           const userRef = doc(db, 'users', userDocs.docs[0].id);
@@ -492,11 +498,11 @@ export default function StudentManagementPage() {
 
   const handleUpdateCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!credentialStudent) return;
+    if (!credentialStudent || !campusId) return;
     setLoading(true);
     try {
-      // Find user UID by admission number
-      const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', credentialStudent.admissionNumber));
+      // Find user UID by admission number and campusId
+      const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', credentialStudent.admissionNumber), where('campusId', '==', campusId));
       const userDocs = await getDocs(usersQuery);
       if (userDocs.empty) throw new Error('User account not found for this student.');
       
@@ -572,7 +578,7 @@ export default function StudentManagementPage() {
       setLoading(true);
       
       if (admissionNumber) {
-        const q = query(collection(db, 'students'), where('admissionNumber', '==', admissionNumber));
+        const q = query(collection(db, 'students'), where('campusId', '==', campusId), where('admissionNumber', '==', admissionNumber));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
           setStatus({ type: 'error', msg: 'Admission number already exists.' });
@@ -596,6 +602,7 @@ export default function StudentManagementPage() {
         totalPoints: 0,
         categoryPoints: {},
         badges: [],
+        campusId: campusId,
         createdAt: new Date().toISOString()
       };
 
@@ -625,8 +632,9 @@ export default function StudentManagementPage() {
     setStatus({ type: 'success', msg: 'Starting class normalization for all students...' });
 
     try {
-      // Fetch all students
-      const studentsSnap = await getDocs(collection(db, 'students'));
+      if (!campusId) return;
+      // Fetch all students for this campus
+      const studentsSnap = await getDocs(query(collection(db, 'students'), where('campusId', '==', campusId)));
       let updatedCount = 0;
       let skippedCount = 0;
 
@@ -641,7 +649,7 @@ export default function StudentManagementPage() {
 
           // Update user doc if exists
           if (data.admissionNumber) {
-            const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', data.admissionNumber));
+            const usersQuery = query(collection(db, 'users'), where('campusId', '==', campusId), where('admissionNumber', '==', data.admissionNumber));
             const userDocs = await getDocs(usersQuery);
             if (!userDocs.empty) {
               await updateDoc(userDocs.docs[0].ref, { class: normalized });

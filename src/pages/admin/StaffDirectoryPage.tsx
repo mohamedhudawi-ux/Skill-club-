@@ -10,7 +10,10 @@ import { ConfirmModal } from '../../components/ConfirmModal';
 import { ImageUpload } from '../../components/ImageUpload';
 import { addStaffMembers } from '../../addStaff';
 
+import { useAuth } from '../../AuthContext';
+
 export default function StaffDirectoryPage() {
+  const { campusId } = useAuth();
   const [staff, setStaff] = React.useState<UserProfile[]>([]);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [editingStaff, setEditingStaff] = useState<UserProfile | null>(null);
@@ -25,16 +28,17 @@ export default function StaffDirectoryPage() {
   );
 
   React.useEffect(() => {
+    if (!campusId) return;
     const fetchStaff = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['staff', 'academic', 'safa'])));
+        const snap = await getDocs(query(collection(db, 'users'), where('campusId', '==', campusId), where('role', 'in', ['staff', 'academic', 'safa'])));
         setStaff(snap.docs.map(doc => ({ ...doc.data(), uid: doc.id } as UserProfile)));
       } catch (error) {
         console.error('Error fetching staff:', error);
       }
     };
     fetchStaff();
-  }, []);
+  }, [campusId]);
 
   const handleUpdateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
