@@ -28,8 +28,9 @@ import { ImageUpload } from '../components/ImageUpload';
 import { StaffDashboard } from '../components/StaffDashboard';
 import AcademicPanel from './AcademicPanel';
 import StudentManagementPage from './admin/StudentManagementPage';
+import { CCEMarksStaff } from '../components/CCEMarksStaff';
 
-type Tab = 'dashboard' | 'directory' | 'academic' | 'students' | 'gallery' | 'calendar' | 'profile';
+type Tab = 'dashboard' | 'directory' | 'academic' | 'students' | 'gallery' | 'calendar' | 'profile' | 'marks';
 
 export default function StaffPanel() {
   const navigate = useNavigate();
@@ -98,6 +99,7 @@ export default function StaffPanel() {
       title: 'Academics',
       items: [
         { id: 'academic', label: 'Academic Panel', icon: GraduationCap },
+        { id: 'marks', label: 'CCE Marks', icon: ClipboardList },
         { id: 'directory', label: 'Student Directory', icon: Users },
         { id: 'students', label: 'Student Management', icon: ClipboardList },
       ]
@@ -477,6 +479,7 @@ export default function StaffPanel() {
           {activeTab === 'directory' && renderStudentDirectory()}
           {activeTab === 'academic' && <AcademicPanel />}
           {activeTab === 'students' && <StudentManagementPage />}
+          {activeTab === 'marks' && <CCEMarksStaff />}
           {activeTab === 'gallery' && renderGallery()}
           {activeTab === 'calendar' && renderCalendar()}
           {activeTab === 'profile' && renderProfile()}

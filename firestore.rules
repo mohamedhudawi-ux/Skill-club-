@@ -166,6 +166,13 @@ service cloud.firestore {
       allow update: if isAuthenticated() && resource.data.recipientUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.recipientUid == request.auth.uid);
     }
+    
+    // Login Notifications
+    match /loginNotifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
 
     // Site Content & Settings
     match /siteContent/{id} { allow read: if true; allow write: if isAdmin() || isStaff(); }
@@ -175,6 +182,13 @@ service cloud.firestore {
     match /reports/{id} { allow read, write: if isSafa() || isAdmin(); }
     match /monthlyReports/{id} { allow read, write: if isSafa() || isAdmin(); }
     match /clubPointEntries/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
+
+    // CCE Marks
+    match /cceMarks/{markId} {
+      allow get: if isStaff() || isAdmin() || (isAuthenticated() && resource.data.studentId == getUserData().admissionNumber);
+      allow list: if isStaff() || isAdmin() || (isAuthenticated() && resource.data.studentId == getUserData().admissionNumber);
+      allow create, update, delete: if hasRole('staff') || hasRole('academic') || isAdmin();
+    }
 
     // Class Dues
     match /classDues/{id} {

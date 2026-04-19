@@ -316,4 +316,36 @@ export const SAFA_UNION_CLUBS = [
   'Science & Maths Club', 'Arts Club', 'IT Club', 'SAB'
 ];
 
-export const CLASS_LIST = ['SS2', 'SS1', 'S5', 'S4', 'S3', 'S2', 'S1A', 'S1B'];
+export const CLASS_LIST = ['SS2', 'SS1', 'S5', 'S4', 'S3', 'S2A', 'S2B', 'S1A', 'S1B'];
+
+export interface CCEMark {
+  id?: string;
+  studentId: string;
+  studentName: string;
+  class: string;
+  subject: string;
+  term: 'CCE 1' | 'CCE 2' | 'CCE 3' | 'CCE 4';
+  mark: number | string;
+  uploadedBy: string;
+  timestamp: any;
+}
+
+export const SUBJECT_LIST = [
+  'Quran',
+  'Fiqh',
+  'Hadith',
+  'Sarf',
+  'Nahw',
+  'Arabic',
+  'English',
+  'Urdu',
+  'Hindi',
+  'Telugu',
+  'Science',
+  'Maths',
+  'Social Studies',
+  'General Knowledge',
+  'Moral Studies'
+];
+
+export const CCE_TERMS = ['CCE 1', 'CCE 2', 'CCE 3', 'CCE 4'] as const;

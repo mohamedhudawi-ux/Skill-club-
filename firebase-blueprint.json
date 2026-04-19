@@ -232,6 +232,22 @@
         "read": { "type": "boolean" }
       },
       "required": ["recipientUid", "title", "message", "timestamp"]
+    },
+    "CCEMark": {
+      "title": "CCE Mark",
+      "description": "Continuous and Comprehensive Evaluation marks for students.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "class": { "type": "string" },
+        "subject": { "type": "string" },
+        "term": { "type": "string", "enum": ["CCE 1", "CCE 2", "CCE 3", "CCE 4"] },
+        "mark": { "type": "number" },
+        "uploadedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "class", "subject", "term", "mark", "uploadedBy", "timestamp"]
     }
   },
   "firestore": {
@@ -242,6 +258,10 @@
     "/students/{admissionNumber}": {
       "schema": "Student",
       "description": "Student details"
+    },
+    "/cceMarks/{markId}": {
+      "schema": "CCEMark",
+      "description": "CCE Marks records"
     },
     "/skillClubEntries/{entryId}": {
       "schema": "SkillClubEntry",

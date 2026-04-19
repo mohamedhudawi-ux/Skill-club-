@@ -17,6 +17,7 @@ import { QueryBox } from '../components/QueryBox';
 import { StaffDashboard } from '../components/StaffDashboard';
 import { SafaDashboard } from '../components/SafaDashboard';
 import { AdminDashboard } from '../components/AdminDashboard';
+import { CCEMarksStudent } from '../components/CCEMarksStudent';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { safeToDate } from '../utils/date';
@@ -51,7 +52,7 @@ export default function Dashboard() {
 
   const queryParams = new URLSearchParams(location.search);
   const tabFromUrl = queryParams.get('tab') as any;
-  const [activeTab, setActiveTab] = useState<'overview' | 'scoreboard' | 'rules' | 'queries' | 'notifications' | 'staff-directory'>(tabFromUrl || 'overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'scoreboard' | 'rules' | 'queries' | 'notifications' | 'staff-directory' | 'marks'>(tabFromUrl || 'overview');
   const [topStudents, setTopStudents] = useState<Student[]>([]);
   const [topMonthly, setTopMonthly] = useState<{name: string, points: number, admissionNumber: string, photoURL?: string}[]>([]);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
@@ -307,6 +308,7 @@ export default function Dashboard() {
         {[
           { id: 'overview', label: 'Overview', icon: BarChart3, public: false, enabled: true },
           { id: 'scoreboard', label: 'Scoreboard', icon: Award, public: false, enabled: true },
+          { id: 'marks', label: 'CCE Marks', icon: BookOpen, public: false, enabled: isStudent },
           { id: 'rules', label: 'Rules & Badges', icon: ShieldCheck, public: true, enabled: true },
           { id: 'queries', label: 'Queries', icon: MessageSquare, public: false, enabled: true },
           { id: 'notifications', label: 'Notifications', icon: Bell, public: false, enabled: true },
@@ -823,6 +825,12 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'marks' && student && (
+          <div className="max-w-4xl mx-auto">
+            <CCEMarksStudent student={student} />
           </div>
         )}
       </div>

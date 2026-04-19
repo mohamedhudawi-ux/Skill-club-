@@ -87,6 +87,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { name: 'Safa Panel', href: '/safa', icon: Bell, group: 'Media' }
       );
     }
+    if (isStaff || isAdmin || profile?.role === 'academic') {
+        navigation.push(
+          { name: 'CCE Marks', href: '/cce-marks', icon: FileText, group: 'Portal' }
+        );
+    }
+    
     if (isStaff || isAdmin) {
       navigation.push(
         { name: 'Academic Panel', href: '/academic', icon: FileText, group: 'Portal' },

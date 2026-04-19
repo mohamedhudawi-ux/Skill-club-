@@ -55,10 +55,11 @@ import { StaffDashboard } from '../components/StaffDashboard';
 import { AdminSubmissions } from '../components/AdminSubmissions';
 import { AdminGraceMarks } from '../components/AdminGraceMarks';
 import SettingsPage from './admin/SettingsPage';
+import { CCEMarksAdmin } from '../components/CCEMarksAdmin';
 
 
 
-type Tab = 'dashboard' | 'profile' | 'gallery' | 'clubs' | 'boards' | 'calendar' | 'users' | 'staff' | 'club-points' | 'club-members' | 'students' | 'submissions' | 'gracemarks' | 'settings' | 'reports';
+type Tab = 'dashboard' | 'profile' | 'gallery' | 'clubs' | 'boards' | 'calendar' | 'users' | 'staff' | 'club-points' | 'club-members' | 'students' | 'submissions' | 'gracemarks' | 'settings' | 'reports' | 'marks';
 
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -1626,6 +1627,7 @@ export default function AdminCommandCenter() {
         ...(role === 'admin' || role === 'academic' || role === 'safa' || role === 'treasurer' ? [
           { id: 'submissions', label: 'Submissions', icon: FileText },
           { id: 'gracemarks', label: 'Grace Marks', icon: Award },
+          { id: 'marks', label: 'CCE Marks', icon: ClipboardList },
           { id: 'reports', label: 'Reports', icon: ClipboardList },
         ] : []),
       ]
@@ -1731,6 +1733,7 @@ export default function AdminCommandCenter() {
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'submissions' && renderSubmissions()}
           {activeTab === 'gracemarks' && renderGracemarks()}
+          {activeTab === 'marks' && <CCEMarksAdmin />}
           {activeTab === 'students' && renderStudents()}
           {activeTab === 'staff' && renderStaff()}
           {activeTab === 'users' && renderUsers()}

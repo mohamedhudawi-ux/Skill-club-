@@ -35,6 +35,7 @@ import SubmitWork from './pages/SubmitWork';
 import GraceMarks from './pages/GraceMarks';
 import ResourceLibrary from './pages/ResourceLibrary';
 import StudentPortfolio from './pages/StudentPortfolio';
+import { CCEMarksWrapper } from './components/CCEMarksWrapper';
 
 import ResumeBuilder from './pages/ResumeBuilder';
 
@@ -212,6 +213,11 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         <Route path="/portfolio/:admissionNumber" element={<StudentPortfolio />} />
+        <Route path="/cce-marks" element={
+          <ProtectedRoute requiredRole="academic">
+            <CCEMarksWrapper />
+          </ProtectedRoute>
+        } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
