@@ -29,13 +29,16 @@ export function StaffDashboard() {
     const unsubscribers: (() => void)[] = [];
 
     const setupListeners = () => {
+      if (!profile?.campusId) return;
+      const campusId = profile.campusId;
+
       // Top Students
-      unsubscribers.push(onSnapshot(query(collection(db, 'students'), orderBy('totalPoints', 'desc'), limit(3)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId), orderBy('totalPoints', 'desc'), limit(3)), (snap) => {
         setTopStudents(snap.docs.map(doc => doc.data() as Student));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
 
       // Class Counts
-      unsubscribers.push(onSnapshot(collection(db, 'students'), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId)), (snap) => {
         const counts: Record<string, number> = {};
         CLASS_LIST.forEach(className => {
           counts[className] = snap.docs.filter(doc => doc.data().class === className).length;
@@ -46,6 +49,7 @@ export function StaffDashboard() {
       // Recent Submissions
       unsubscribers.push(onSnapshot(query(
         collection(db, 'workSubmissions'),
+        where('campusId', '==', campusId),
         where('status', '==', 'pending'),
         orderBy('timestamp', 'desc'),
         limit(5)
@@ -61,10 +65,12 @@ export function StaffDashboard() {
   }, []);
 
   const handleClassClick = async (className: string) => {
+    if (!profile?.campusId) return;
+    
     setSelectedClass(className);
     setSearchTerm('');
     try {
-      const q = query(collection(db, 'students'), where('class', '==', className), orderBy('name', 'asc'));
+      const q = query(collection(db, 'students'), where('campusId', '==', profile.campusId), where('class', '==', className), orderBy('name', 'asc'));
       const snap = await getDocs(q);
       const students = snap.docs.map(doc => doc.data() as Student);
       setClassStudents(students);

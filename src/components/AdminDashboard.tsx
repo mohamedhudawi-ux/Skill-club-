@@ -24,8 +24,11 @@ import { BrandingHeader } from './BrandingHeader';
 
 export function AdminDashboard() {
   const navigate = useNavigate();
-  const { profile, loading: authLoading, campusId } = useAuth();
+  const { profile, loading: authLoading, campusId, currentCampus } = useAuth();
   const { siteContent, loading: settingsLoading } = useSettings();
+  const studentUnionName = currentCampus?.studentUnionName || "SAFA Union";
+  const skillClubName = currentCampus?.skillClubName || "Skill Club";
+  
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalActivities: 0,
@@ -53,7 +56,10 @@ export function AdminDashboard() {
     if (authLoading || settingsLoading) return;
     
     const fetchData = async () => {
-      if (!campusId) return;
+      if (!campusId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError(null);
 
@@ -130,7 +136,7 @@ export function AdminDashboard() {
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-20 space-y-4">
       <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-stone-500 font-bold animate-pulse">Loading Safa Dashboard...</p>
+      <p className="text-stone-500 font-bold animate-pulse">Loading {studentUnionName} Dashboard...</p>
     </div>
   );
 
@@ -167,8 +173,8 @@ export function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             { key: 'about_dhpc', label: 'About Darul Huda Punganur', logoKey: 'college_logo' },
-            { key: 'about_safa', label: 'About Safa Union', logoKey: 'safa_logo' },
-            { key: 'about_skillclub', label: 'About Skill Club', logoKey: 'skillclub_logo' }
+            { key: 'about_safa', label: `About ${studentUnionName}`, logoKey: 'safa_logo' },
+            { key: 'about_skillclub', label: `About ${skillClubName}`, logoKey: 'skillclub_logo' }
           ].map(section => {
             const item = siteContent.find(c => c.key === section.key);
             const logo = siteContent.find(c => c.key === section.logoKey);

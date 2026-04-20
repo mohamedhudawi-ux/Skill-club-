@@ -162,7 +162,10 @@ export default function Dashboard() {
 
     // --- STUDENT SPECIFIC DATA FETCHING ---
     const fetchBaseData = async () => {
-      if (!isStudent || !profile?.admissionNumber || !campusId) return;
+      if (!isStudent || !profile?.admissionNumber || !campusId) {
+        setLoading(false);
+        return;
+      }
 
       try {
         // Fetch Student Profile

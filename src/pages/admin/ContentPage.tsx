@@ -9,8 +9,12 @@ import { useAuth } from '../../AuthContext';
 import { Campus } from '../../types';
 
 export default function ContentPage() {
-  const { campusId } = useAuth();
+  const { campusId, currentCampus } = useAuth();
   const { siteContent, refreshContent } = useSettings();
+  
+  const studentUnionName = currentCampus?.studentUnionName || "SAFA Union";
+  const skillClubName = currentCampus?.skillClubName || "Skill Club";
+
   const [localContent, setLocalContent] = useState<any[]>([]);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
@@ -68,8 +72,8 @@ export default function ContentPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[
             { key: 'college_logo', label: 'Darul Huda Punganur Logo' },
-            { key: 'safa_logo', label: 'Safa Logo' },
-            { key: 'skillclub_logo', label: 'Skill Club Logo' }
+            { key: 'safa_logo', label: `${studentUnionName} Logo` },
+            { key: 'skillclub_logo', label: `${skillClubName} Logo` }
           ].map(logo => {
             const item = content.find(c => c.key === logo.key);
             return (
@@ -111,8 +115,8 @@ export default function ContentPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             { key: 'about_college', label: 'About Darul Huda Punganur' },
-            { key: 'about_safa', label: 'About Safa Union' },
-            { key: 'about_skillclub', label: 'About Skill Club' }
+            { key: 'about_safa', label: `About ${studentUnionName}` },
+            { key: 'about_skillclub', label: `About ${skillClubName}` }
           ].map(section => {
             const item = content.find(c => c.key === section.key);
             return (

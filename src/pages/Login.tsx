@@ -17,36 +17,13 @@ export default function Login() {
   const location = useLocation();
   const { profile, loading: authLoading } = useAuth();
   
+  const from = location.state?.from?.pathname || '/dashboard';
+
   React.useEffect(() => {
     if (!authLoading && profile) {
-      let targetPath = location.state?.from?.pathname;
-      
-      // If there's no specific path requested (or it's just /), route based on role
-      // Note: If they specifically requested a URL like /gallery, let them go there.
-      if (!targetPath || targetPath === '/') {
-        switch (profile.role) {
-          case 'master_admin':
-            targetPath = '/master-dashboard';
-            break;
-          case 'admin':
-            targetPath = '/admin';
-            break;
-          case 'staff':
-          case 'academic':
-            targetPath = '/staff';
-            break;
-          case 'safa':
-            targetPath = '/safa';
-            break;
-          default:
-            targetPath = '/dashboard';
-            break;
-        }
-      }
-      
-      navigate(targetPath, { replace: true });
+      navigate(from, { replace: true });
     }
-  }, [profile, authLoading, navigate, location.state]);
+  }, [profile, authLoading, navigate, from]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
