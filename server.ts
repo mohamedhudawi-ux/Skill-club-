@@ -263,7 +263,7 @@ async function startServer() {
     app.use(vite.middlewares);
 
     // Explicitly handle all non-API GET requests with Vite transform
-    app.get('*', async (req, res, next) => {
+    app.get('*all', async (req, res, next) => {
       // Skip API requests from falling through to SPA fallback
       if (req.path.startsWith('/api')) return next();
       
@@ -284,7 +284,7 @@ async function startServer() {
   } else {
     console.log('Running in production mode');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
