@@ -127,8 +127,8 @@ export default function AdminCommandCenter() {
         let currentBatch = writeBatch(db);
 
         for (const d of snap.docs) {
-          if (!d.data().campusId) {
-            currentBatch.update(d.ref, { campusId: 'default' });
+          if (!d.data().campusId || d.data().campusId !== campusId) {
+            currentBatch.update(d.ref, { campusId: campusId });
             count++;
             batchCount++;
             if (batchCount === 450) { 
@@ -142,6 +142,36 @@ export default function AdminCommandCenter() {
         if (count > 0) console.log(`Migrated ${count} students`);
       };
       fixStudentsCampusId();
+
+      const fixClubsCampusId = async () => {
+        const snap = await getDocs(collection(db, 'clubs'));
+        const batch = writeBatch(db);
+        let count = 0;
+        for (const d of snap.docs) {
+          if (!d.data().campusId || d.data().campusId !== campusId) {
+            batch.update(d.ref, { campusId: campusId });
+            count++;
+          }
+        }
+        await batch.commit();
+        if (count > 0) console.log(`Migrated ${count} clubs`);
+      };
+      fixClubsCampusId();
+
+      const fixBoardsCampusId = async () => {
+        const snap = await getDocs(collection(db, 'boards'));
+        const batch = writeBatch(db);
+        let count = 0;
+        for (const d of snap.docs) {
+          if (!d.data().campusId || d.data().campusId !== campusId) {
+            batch.update(d.ref, { campusId: campusId });
+            count++;
+          }
+        }
+        await batch.commit();
+        if (count > 0) console.log(`Migrated ${count} boards`);
+      };
+      fixBoardsCampusId();
 
       const cleanupStudentsWithoutNames = async () => {
         const snap = await getDocs(query(collection(db, 'students'), where('campusId', '==', campusId)));
@@ -591,6 +621,7 @@ export default function AdminCommandCenter() {
     setStatus({ type: 'success', msg: 'Starting restore...' });
     try {
       const targetCampus = campusId || 'default';
+      console.log('Restoring data for campus:', targetCampus);
 
       // 1. Staff Members
       const staffMembers = [
@@ -616,8 +647,8 @@ export default function AdminCommandCenter() {
         }, { merge: true });
       }
       await batch1.commit();
+      console.log('Staff members restored successfully');
 
-      // 2. Clubs
       const clubsToAdd = ['Safa SRDB', 'LB', 'SAB', 'SAFA'];
       const batchClubs = writeBatch(db);
       for (const clubName of clubsToAdd) {
