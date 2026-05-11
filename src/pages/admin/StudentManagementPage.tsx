@@ -732,26 +732,28 @@ export default function StudentManagementPage() {
 
       for (const [admNo, newName] of Object.entries(nameMapping)) {
         try {
-          // Update students collection
-          const studentRef = doc(db, 'students', admNo);
-          const studentSnap = await getDoc(studentRef);
+          // Query for the student by admissionNumber field
+          const q = query(collection(db, 'students'), where('campusId', '==', campusId), where('admissionNumber', '==', admNo));
+          const snap = await getDocs(q);
           
-          if (studentSnap.exists()) {
+          if (!snap.empty) {
+            const studentRef = snap.docs[0].ref;
             await updateDoc(studentRef, { name: newName });
           } else {
-            // Create the student doc if it somehow doesn't exist
-            await setDoc(studentRef, {
+            // If doesn't exist, create it with admNo as ID (standardize)
+            await setDoc(doc(db, 'students', admNo), {
               name: newName,
               admissionNumber: admNo,
               totalPoints: 0,
               categoryPoints: {},
               badges: [],
+              campusId: campusId,
               createdAt: new Date().toISOString()
             });
           }
 
-          // Update users collection
-          const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', admNo));
+          // Update users collection if exists
+          const usersQuery = query(collection(db, 'users'), where('campusId', '==', campusId), where('admissionNumber', '==', admNo));
           const userDocs = await getDocs(usersQuery);
           if (!userDocs.empty) {
             const userRef = doc(db, 'users', userDocs.docs[0].id);
@@ -806,90 +808,72 @@ export default function StudentManagementPage() {
 
   const handleProvisionAccounts = async () => {
     setProvisionConfirm(false);
-    const studentsToProvision = [
-      "883", "891", "881", "887", "885", "889"
-    ];
-
     setLoading(true);
-    setStatus({ type: 'success', msg: `Starting provisioning for ${studentsToProvision.length} students...` });
+    setStatus({ type: 'success', msg: 'Fetching students without accounts...' });
 
     try {
+      if (!campusId) throw new Error('Campus ID not found');
+
+      // Fetch students without email
+      const q = query(collection(db, 'students'), where('campusId', '==', campusId));
+      const snap = await getDocs(q);
+      
+      const allStudents = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+      const studentsToProvision = allStudents.filter(s => !s.email);
+
+      if (studentsToProvision.length === 0) {
+        setStatus({ type: 'success', msg: 'No students found without provisioned accounts.' });
+        setLoading(false);
+        return;
+      }
+
+      setStatus({ type: 'success', msg: `Starting provisioning for ${studentsToProvision.length} students...` });
+
       const secondaryApp = initializeApp(firebaseConfig, 'SecondaryApp');
       const secondaryAuth = getAuth(secondaryApp);
       
       let successCount = 0;
       let errorCount = 0;
 
-      for (const admNo of studentsToProvision) {
-        const email = `${admNo}@skill.edu`;
-        const password = `stu${admNo}`;
-        
-        let studentDocExists = false;
-        try {
-          // Check if student exists in students collection
-          const studentDoc = await getDoc(doc(db, 'students', admNo));
-          studentDocExists = studentDoc.exists();
-          let studentName = `Student ${admNo}`;
-          
-          if (studentDocExists) {
-            const data = studentDoc.data();
-            studentName = data?.name || studentName;
-            
-            // If student already has an email, they are likely already provisioned
-            if (data?.email) {
-              console.log(`Account already provisioned for ${admNo} (email exists in doc), skipping...`);
-              successCount++;
-              setStatus({ type: 'success', msg: `Provisioned ${successCount}/${studentsToProvision.length}...` });
-              continue; // Skip the rest of the loop for this student
-            }
-          } else {
-            console.warn(`Student doc not found for ${admNo}`);
-          }
+      for (const student of studentsToProvision) {
+        const admNo = student.admissionNumber;
+        if (!admNo) continue;
 
+        const email = `${admNo}@skill.edu`.toLowerCase();
+        const password = `stu${admNo}`;
+        const studentName = student.name || `Student ${admNo}`;
+        const studentId = student.id!;
+
+        try {
           // Create user with retry for rate limits
           let userCredential;
           let retries = 5;
-          let backoff = 10000; // Start with 10 seconds
+          let backoff = 10000;
           while (retries > 0) {
             try {
               userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-              break; // Success
+              break;
             } catch (err: any) {
               if (err.code === 'auth/too-many-requests') {
                 retries--;
                 if (retries === 0) throw err;
                 console.log(`Rate limited for ${admNo}, waiting ${backoff / 1000}s before retry...`);
-                setStatus({ type: 'success', msg: `Rate limit hit. Firebase requires cooldown. Waiting ${backoff / 1000}s before retrying ${admNo}...` });
+                setStatus({ type: 'success', msg: `Rate limit hit. Waiting ${backoff / 1000}s before retrying ${admNo}...` });
                 await new Promise(resolve => setTimeout(resolve, backoff));
-                backoff *= 2; // Exponential backoff: 10s -> 20s -> 40s -> 80s
+                backoff *= 2; 
               } else {
-                throw err; // Re-throw other errors (like email-already-in-use) to be handled by outer catch
+                throw err;
               }
             }
           }
           
-          if (!userCredential) {
-            throw new Error('Failed to create user credential');
-          }
+          if (!userCredential) throw new Error('Failed to create user credential');
 
           const uid = userCredential.user.uid;
-          
           await updateProfile(userCredential.user, { displayName: studentName });
           
           // Update student doc
-          if (studentDocExists) {
-            await updateDoc(doc(db, 'students', admNo), { email });
-          } else {
-            await setDoc(doc(db, 'students', admNo), {
-              name: studentName,
-              admissionNumber: admNo,
-              email,
-              totalPoints: 0,
-              categoryPoints: {},
-              badges: [],
-              createdAt: new Date().toISOString()
-            });
-          }
+          await updateDoc(doc(db, 'students', studentId), { email });
           
           // Create user doc
           await setDoc(doc(db, 'users', uid), {
@@ -898,6 +882,7 @@ export default function StudentManagementPage() {
             displayName: studentName,
             role: 'student',
             admissionNumber: admNo,
+            campusId: campusId,
             createdAt: new Date().toISOString()
           }, { merge: true });
           
@@ -907,10 +892,7 @@ export default function StudentManagementPage() {
         } catch (err: any) {
           if (err.code === 'auth/email-already-in-use') {
             console.log(`Account already exists for ${admNo}, updating student doc...`);
-            // Already provisioned, just update the student doc if needed
-            if (studentDocExists) {
-              await updateDoc(doc(db, 'students', admNo), { email });
-            }
+            await updateDoc(doc(db, 'students', studentId), { email });
             successCount++;
           } else {
             console.error(`Failed to provision ${admNo}:`, err);
@@ -918,20 +900,17 @@ export default function StudentManagementPage() {
           }
         }
         
-        // Add a delay to avoid auth/too-many-requests
-        await new Promise(resolve => setTimeout(resolve, 4000));
+        // Short delay to respect Firebase Auth rate limits in batch creation
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
       setStatus({ type: 'success', msg: `Provisioning complete! Success: ${successCount}, Errors: ${errorCount}` });
+      fetchStudents(false);
     } catch (err: any) {
       console.error('Provisioning error:', err);
       let errorMsg = err.message;
       if (errorMsg.includes('identitytoolkit.googleapis.com') || errorMsg.includes('Identity Toolkit API')) {
-        errorMsg = `Firebase Authentication (Identity Toolkit API) is not enabled. 
-        
-1. Enable it: https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=531260372208
-2. Click "Get Started" in Firebase Auth: https://console.firebase.google.com/project/gen-lang-client-0615445747/authentication
-3. Wait 3-5 minutes.`;
+        errorMsg = `Firebase Authentication API not enabled. Enable it in Google Cloud Console.`;
       }
       setStatus({ type: 'error', msg: 'Provisioning failed: ' + errorMsg });
     } finally {
