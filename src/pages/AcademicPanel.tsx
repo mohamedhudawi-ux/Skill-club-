@@ -67,11 +67,36 @@ export default function AcademicPanel() {
   useEffect(() => {
     const fetchStudent = async () => {
       if (marksData.admissionNumber.length >= 3) {
-        const docRef = doc(db, 'students', marksData.admissionNumber);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setFoundStudent(docSnap.data() as Student);
-        } else {
+        try {
+          const studentsRef = collection(db, 'students');
+          let q = query(studentsRef, where('admissionNumber', '==', marksData.admissionNumber));
+          
+          if (campusId) {
+            q = query(studentsRef, 
+              where('admissionNumber', '==', marksData.admissionNumber),
+              where('campusId', '==', campusId)
+            );
+          }
+          
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const docSnap = querySnapshot.docs[0];
+            setFoundStudent({ id: docSnap.id, ...docSnap.data() } as Student);
+          } else if (campusId) {
+            // Fallback: search globally if campus-specific fails
+            const globalQ = query(studentsRef, where('admissionNumber', '==', marksData.admissionNumber));
+            const globalSnap = await getDocs(globalQ);
+            if (!globalSnap.empty) {
+              const docSnap = globalSnap.docs[0];
+              setFoundStudent({ id: docSnap.id, ...docSnap.data() } as Student);
+            } else {
+              setFoundStudent(null);
+            }
+          } else {
+            setFoundStudent(null);
+          }
+        } catch (err) {
+          console.error('Error searching student:', err);
           setFoundStudent(null);
         }
       } else {
@@ -79,7 +104,7 @@ export default function AcademicPanel() {
       }
     };
     fetchStudent();
-  }, [marksData.admissionNumber]);
+  }, [marksData.admissionNumber, campusId]);
 
   const checkBadges = (totalPoints: number, currentBadges: string[]) => {
     const newBadges: string[] = [...currentBadges];
@@ -100,7 +125,8 @@ export default function AcademicPanel() {
 
     try {
       const points = Number(marksData.points);
-      const studentRef = doc(db, 'students', marksData.admissionNumber);
+      const studentId = foundStudent.id || marksData.admissionNumber; // Fallback to admission number if id is missing
+      const studentRef = doc(db, 'students', studentId);
       
       const newTotalPoints = (foundStudent.totalPoints || 0) + points;
       const updatedBadges = checkBadges(newTotalPoints, foundStudent.badges || []);
@@ -112,12 +138,20 @@ export default function AcademicPanel() {
           badges: updatedBadges
         });
       } catch (err) {
-        return handleFirestoreError(err, OperationType.UPDATE, `students/${marksData.admissionNumber}`);
+        return handleFirestoreError(err, OperationType.UPDATE, `students/${studentId}`);
       }
 
       // Also update user profile if it exists
-      const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', marksData.admissionNumber));
-      const userDocs = await getDocs(usersQuery);
+      const usersRef = collection(db, 'users');
+      let usersQ = query(usersRef, where('admissionNumber', '==', marksData.admissionNumber));
+      if (campusId) {
+        usersQ = query(usersRef, 
+          where('admissionNumber', '==', marksData.admissionNumber),
+          where('campusId', '==', campusId)
+        );
+      }
+      
+      const userDocs = await getDocs(usersQ);
       if (!userDocs.empty) {
         const userRef = doc(db, 'users', userDocs.docs[0].id);
         try {
@@ -159,9 +193,16 @@ export default function AcademicPanel() {
 
       setStatus({ type: 'success', msg: `Added ${points} points to ${foundStudent.name}!` });
       setMarksData({ ...marksData, points: '', description: '', subCategory: '' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Enter marks error:', error);
-      setStatus({ type: 'error', msg: 'An unexpected error occurred while adding marks.' });
+      let msg = 'An unexpected error occurred while adding marks.';
+      try {
+        const errObj = JSON.parse(error.message);
+        if (errObj.error) msg = `Error: ${errObj.error}`;
+      } catch (e) {
+        msg = error.message || msg;
+      }
+      setStatus({ type: 'error', msg });
     }
   };
 

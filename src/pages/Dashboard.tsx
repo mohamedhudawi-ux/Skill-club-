@@ -175,9 +175,13 @@ export default function Dashboard() {
 
       try {
         // Fetch Student Profile
-        const studentDoc = await getDoc(doc(db, 'students', profile.admissionNumber));
-        if (studentDoc.exists()) {
-          const studentData = studentDoc.data() as Student;
+        const studentsRef = collection(db, 'students');
+        const qStudent = query(studentsRef, where('admissionNumber', '==', profile.admissionNumber));
+        const studentSnap = await getDocs(qStudent);
+        
+        if (!studentSnap.empty) {
+          const studentDoc = studentSnap.docs[0];
+          const studentData = { id: studentDoc.id, ...studentDoc.data() } as Student;
           // Verify campus matches
           if (studentData.campusId === campusId) {
             setStudent(studentData);

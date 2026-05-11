@@ -28,9 +28,13 @@ export default function GraceMarks() {
       }
 
       try {
-        const studentDoc = await getDoc(doc(db, 'students', profile.admissionNumber));
-        if (studentDoc.exists()) {
-          setStudent({ admissionNumber: studentDoc.id, ...studentDoc.data() } as Student);
+        const studentsRef = collection(db, 'students');
+        const qStudent = query(studentsRef, where('admissionNumber', '==', profile.admissionNumber));
+        const studentSnap = await getDocs(qStudent);
+        
+        if (!studentSnap.empty) {
+          const studentDoc = studentSnap.docs[0];
+          setStudent({ id: studentDoc.id, ...studentDoc.data() } as Student);
         }
 
         const qGraceMarks = query(

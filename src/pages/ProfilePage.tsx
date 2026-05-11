@@ -37,8 +37,12 @@ export default function ProfilePage() {
     const fetchProfileData = async () => {
       if (profile?.role === 'student' && profile?.admissionNumber) {
         try {
-          const studentDoc = await getDoc(doc(db, 'students', profile.admissionNumber));
-          if (studentDoc.exists()) {
+          const studentsRef = collection(db, 'students');
+          const qStudent = query(studentsRef, where('admissionNumber', '==', profile.admissionNumber));
+          const studentSnap = await getDocs(qStudent);
+          
+          if (!studentSnap.empty) {
+            const studentDoc = studentSnap.docs[0];
             const data = studentDoc.data();
             setStudentClass(data.class || '');
             setFatherName(data.fatherName || '');
@@ -122,9 +126,13 @@ export default function ProfilePage() {
 
       // If student, also update the students collection
       if (profile?.role === 'student' && profile?.admissionNumber) {
-        const studentRef = doc(db, 'students', profile.admissionNumber);
-        const studentSnap = await getDoc(studentRef);
-        if (studentSnap.exists()) {
+        const studentsRef = collection(db, 'students');
+        const qStudent = query(studentsRef, where('admissionNumber', '==', profile.admissionNumber));
+        const studentSnap = await getDocs(qStudent);
+        
+        if (!studentSnap.empty) {
+          const studentDoc = studentSnap.docs[0];
+          const studentRef = studentDoc.ref;
           try {
             await updateDoc(studentRef, {
               photoURL,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, runTransaction, addDoc, serverTimestamp, writeBatch, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, runTransaction, addDoc, serverTimestamp, writeBatch, limit, getDocs, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { WorkSubmission, Student, SKILL_CLUB_RULES } from '../types';
@@ -65,11 +65,25 @@ export function AdminSubmissions() {
         const currentStatus = subDoc.data().status;
         if (currentStatus !== 'pending') throw new Error('Already processed');
 
-        let studentDoc = null;
+        let studentRef = null;
         let userRef = null;
         if (action === 'approved') {
-          const studentRef = doc(db, 'students', submission.admissionNumber);
-          studentDoc = await transaction.get(studentRef);
+          // Find student by admissionNumber field instead of ID
+          const studentQ = query(collection(db, 'students'), where('admissionNumber', '==', submission.admissionNumber));
+          const studentSnap = await getDocs(studentQ);
+          
+          if (!studentSnap.empty) {
+            studentRef = studentSnap.docs[0].ref;
+            const studentData = studentSnap.docs[0].data() as Student;
+            const currentTotal = studentData.totalPoints || 0;
+            const currentCatPoints = studentData.categoryPoints?.[submission.category] || 0;
+            
+            transaction.update(studentRef, {
+              totalPoints: currentTotal + points,
+              [`categoryPoints.${submission.category}`]: currentCatPoints + points
+            });
+          }
+          
           userRef = doc(db, 'users', submission.studentUid);
         }
 
@@ -81,20 +95,11 @@ export function AdminSubmissions() {
           reviewedBy: profile?.uid || 'admin',
         });
 
-        // If approved, update student points and category points
-        if (action === 'approved' && studentDoc && studentDoc.exists()) {
-          const studentData = studentDoc.data() as Student;
-          const currentTotal = studentData.totalPoints || 0;
-          const currentCatPoints = studentData.categoryPoints?.[submission.category] || 0;
-          
-          const studentRef = doc(db, 'students', submission.admissionNumber);
-          transaction.update(studentRef, {
-            totalPoints: currentTotal + points,
-            [`categoryPoints.${submission.category}`]: currentCatPoints + points
-          });
-          
-          // Also update the users collection
-          if (userRef) {
+        // Update users collection if needed
+        if (action === 'approved' && userRef) {
+          const userSnap = await transaction.get(userRef);
+          if (userSnap.exists()) {
+            const currentTotal = userSnap.data().totalPoints || 0;
             transaction.update(userRef, {
               totalPoints: currentTotal + points
             });
@@ -310,8 +315,14 @@ export function AdminSubmissions() {
               return;
             }
             try {
+              const studentQ = query(collection(db, 'students'), where('admissionNumber', '==', editingSubmission.admissionNumber));
+              const studentSnap = await getDocs(studentQ);
+              let studentRef = null;
+              if (!studentSnap.empty) {
+                studentRef = studentSnap.docs[0].ref;
+              }
+
               const subRef = doc(db, 'workSubmissions', editingSubmission.id);
-              const studentRef = doc(db, 'students', editingSubmission.admissionNumber);
               const userRef = doc(db, 'users', editingSubmission.studentUid);
               
               const oldPoints = editingSubmission.pointsAwarded || 0;
@@ -319,7 +330,7 @@ export function AdminSubmissions() {
               
               await runTransaction(db, async (transaction) => {
                 const subDoc = await transaction.get(subRef);
-                const studentDoc = await transaction.get(studentRef);
+                const studentDoc = studentRef ? await transaction.get(studentRef) : null;
                 const userDoc = userRef ? await transaction.get(userRef) : null;
                 
                 if (!subDoc.exists()) throw new Error('Submission not found');
@@ -329,9 +340,9 @@ export function AdminSubmissions() {
                   status: newStatus 
                 });
                 
-                if (studentDoc.exists()) {
+                if (studentDoc && studentDoc.exists()) {
                   const studentData = studentDoc.data() as Student;
-                  transaction.update(studentRef, {
+                  transaction.update(studentRef!, {
                     totalPoints: (studentData.totalPoints || 0) + diff,
                     [`categoryPoints.${editingSubmission.category}`]: (studentData.categoryPoints?.[editingSubmission.category] || 0) + diff
                   });

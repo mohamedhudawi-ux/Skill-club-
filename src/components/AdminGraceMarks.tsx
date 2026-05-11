@@ -85,13 +85,16 @@ export function AdminGraceMarks() {
         if (!appDoc.exists()) throw new Error('Application not found');
         if (appDoc.data().status !== 'pending') throw new Error('Already processed');
 
-        let studentDoc = null;
+        let studentRef = null;
         if (action === 'approved') {
-          const studentRef = doc(db, 'students', application.admissionNumber);
-          studentDoc = await transaction.get(studentRef);
-          if (!studentDoc.exists()) throw new Error('Student not found');
+          // Find student by admissionNumber field instead of ID
+          const studentQ = query(collection(db, 'students'), where('admissionNumber', '==', application.admissionNumber));
+          const studentSnap = await getDocs(studentQ);
+          
+          if (studentSnap.empty) throw new Error('Student not found');
+          studentRef = studentSnap.docs[0].ref;
+          const studentData = studentSnap.docs[0].data() as Student;
 
-          const studentData = studentDoc.data() as Student;
           const pointsNeeded = application.marksToAdd * 100;
           const currentPoints = studentData.totalPoints || 0;
 
@@ -99,7 +102,6 @@ export function AdminGraceMarks() {
             throw new Error(`Insufficient points. Student has ${currentPoints} but needs ${pointsNeeded}.`);
           }
 
-          // Deduct points
           transaction.update(studentRef, {
             totalPoints: currentPoints - pointsNeeded
           });
@@ -282,8 +284,14 @@ export function AdminGraceMarks() {
               return;
             }
             try {
+              const studentQ = query(collection(db, 'students'), where('admissionNumber', '==', editingApplication.admissionNumber));
+              const studentSnap = await getDocs(studentQ);
+              let studentRef = null;
+              if (!studentSnap.empty) {
+                studentRef = studentSnap.docs[0].ref;
+              }
+
               const appRef = doc(db, 'graceMarkApplications', editingApplication.id!);
-              const studentRef = doc(db, 'students', editingApplication.admissionNumber);
               const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', editingApplication.admissionNumber));
               const userDocs = await getDocs(usersQuery);
               const userRef = !userDocs.empty ? doc(db, 'users', userDocs.docs[0].id) : null;
@@ -292,7 +300,7 @@ export function AdminGraceMarks() {
               
               await runTransaction(db, async (transaction) => {
                 const appDoc = await transaction.get(appRef);
-                const studentDoc = await transaction.get(studentRef);
+                const studentDoc = studentRef ? await transaction.get(studentRef) : null;
                 const userDoc = userRef ? await transaction.get(userRef) : null;
                 
                 if (!appDoc.exists()) throw new Error('Application not found');
@@ -302,9 +310,9 @@ export function AdminGraceMarks() {
                   status: newStatus 
                 });
                 
-                if (studentDoc.exists()) {
+                if (studentDoc && studentDoc.exists()) {
                   const studentData = studentDoc.data() as Student;
-                  transaction.update(studentRef, {
+                  transaction.update(studentRef!, {
                     totalPoints: (studentData.totalPoints || 0) - diff
                   });
                 }
