@@ -544,6 +544,109 @@ export default function AdminCommandCenter() {
     }
   };
 
+  const handleRestoreBasicData = async () => {
+    if (!window.confirm('This will recreate the 13 basic staff members, original skill clubs, and basic student profiles from initialization scripts. Proceed?')) return;
+    setLoading(true);
+    setStatus({ type: 'success', msg: 'Starting restore...' });
+    try {
+      if (!campusId) throw new Error("No campus selected.");
+
+      // 1. Staff Members
+      const staffMembers = [
+        { name: 'Zakir', email: 'zakir@skill.edu' }, { name: 'Nayaz', email: 'nayaz@skill.edu' },
+        { name: 'Saifullah', email: 'saifullah@skill.edu' }, { name: 'Saifullahk', email: 'saifullahk@skill.edu' },
+        { name: 'Irfan', email: 'irfan@skill.edu' }, { name: 'Shuaib', email: 'shuaib@skill.edu' },
+        { name: 'Latheef', email: 'latheef@skill.edu' }, { name: 'Salman', email: 'salman@skill.edu' },
+        { name: 'Shefil', email: 'shefil@skill.edu' }, { name: 'Safwan', email: 'safwan@skill.edu' },
+        { name: 'Shibli', email: 'shibli@skill.edu' }, { name: 'Thaha', email: 'thaha@skill.edu' },
+        { name: 'Jawad', email: 'jawad@skill.edu' }
+      ];
+      
+      const batch1 = writeBatch(db);
+      for (const staff of staffMembers) {
+        const staffRef = doc(db, 'users', staff.email);
+        batch1.set(staffRef, {
+          email: staff.email,
+          displayName: staff.name,
+          role: 'staff',
+          campusId: campusId,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      }
+      await batch1.commit();
+
+      // 2. Clubs
+      const clubsToAdd = ['Safa SRDB', 'LB', 'SAB', 'SAFA'];
+      const batchClubs = writeBatch(db);
+      for (const clubName of clubsToAdd) {
+        const clubRef = doc(collection(db, 'clubs'));
+        batchClubs.set(clubRef, {
+          name: clubName,
+          description: '',
+          logoUrl: '',
+          totalPoints: 0,
+          campusId: campusId
+        });
+      }
+      await batchClubs.commit();
+
+      // 3. Students
+      const studentsToProvision = [
+        "897", "899", "901", "903", "905", "840", "874", "877", "879", "882", "884", "886", "890", "880", "822", "893", "896", "906", "908", "912", "914", "824", "819", "871", "896", "910", "873", "876", "878", "881", "883", "885", "887", "889", "891", "892", "894", "895", "898", "900", "902", "904", "907", "909", "911", "913", "915", "916", "820", "821", "823", "825", "826", "827", "828", "829", "830", "831", "832", "833", "834", "835", "836", "837", "838", "839", "841", "842", "843", "844", "845", "846", "847", "848", "849", "850", "851", "852", "853", "854", "855", "856", "857", "858", "859", "860", "861", "862", "863", "864", "865", "866", "867", "868", "869", "870", "872", "875", "888"
+      ];
+      
+      const batch2 = writeBatch(db);
+      for (const admNo of studentsToProvision) {
+        const docRef = doc(db, 'students', admNo);
+        batch2.set(docRef, {
+          admissionNumber: admNo,
+          name: `Student ${admNo}`,
+          email: `${admNo}@skill.edu`,
+          totalPoints: 0,
+          categoryPoints: {},
+          badges: [],
+          campusId: campusId,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      }
+      await batch2.commit();
+
+      // 4. Known students mapped
+      const nameMapping: Record<string, string> = {
+        "500": "MUHAMMAD ZEESHAN", "531": "MUHAMMED RAZA", "542": "SHAMS KAMAR",
+        "544": "MD RAHBAR ISLAM", "548": "MD TASIR HUSAIN", "513": "SHEK SAMEER",
+        "551": "REHAN ALAM", "555": "MULLA ASRARUL HAQ", "561": "S HAMMAD RAJA",
+        "569": "MULLA HAYASAB GARI MAHBOOB VALI", "588": "SHAFQATULLAH KARIMI",
+        "683": "AHMAD RAZA KHAN", "571": "SHAIK MAHAMMAD HUSSAIN", "605": "RAIYAN WARIS",
+        "606": "P ABDUL MATIN KHAN", "613": "MOHAMMED FAIZAN", "614": "MOIZ ASIF",
+        "618": "ABDUL DANISH", "620": "MD SAHIL ANSARI", "621": "SYED SAIF", "666": "SYED REHAN"
+      };
+
+      const batch3 = writeBatch(db);
+      for (const [admNo, newName] of Object.entries(nameMapping)) {
+         const docRef = doc(db, 'students', admNo);
+         batch3.set(docRef, {
+            admissionNumber: admNo,
+            name: newName,
+            email: `${admNo}@skill.edu`,
+            totalPoints: 0,
+            categoryPoints: {},
+            badges: [],
+            campusId: campusId,
+            createdAt: new Date().toISOString()
+         }, { merge: true });
+      }
+      await batch3.commit();
+      
+      setStatus({ type: 'success', msg: 'Basic Staff and Student data restored! Check the management pages.' });
+    } catch (e: any) {
+      console.error(e);
+      setStatus({ type: 'error', msg: e.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const [newStaffData, setNewStaffData] = useState({ name: '', phone: '', email: '', role: 'staff' });
   const [isCreatingStaff, setIsCreatingStaff] = useState(false);
 
@@ -1295,6 +1398,15 @@ export default function AdminCommandCenter() {
 
   const renderUsers = () => (
     <div className="space-y-8">
+      <div className="flex justify-between items-center bg-stone-50 p-4 rounded-2xl border border-stone-200">
+        <div>
+          <h3 className="font-bold text-stone-900">User Management</h3>
+          <p className="text-sm text-stone-500">Manage portal access and roles.</p>
+        </div>
+        <Button variant="danger" onClick={handleRestoreBasicData}>
+          Emergency Restore Data
+        </Button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {users.map(user => (
           <div key={user.uid} className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all group">

@@ -14,7 +14,19 @@ if (fs.existsSync(configPath)) {
   firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 }
 
-if (firebaseConfig.projectId) {
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: firebaseConfig.projectId || serviceAccount.project_id,
+    });
+    console.log('Firebase Admin initialized with service account.');
+  } catch (error) {
+    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT:', error);
+    admin.initializeApp({ projectId: firebaseConfig.projectId });
+  }
+} else if (firebaseConfig.projectId) {
   admin.initializeApp({
     projectId: firebaseConfig.projectId,
   });
@@ -49,8 +61,17 @@ async function startServer() {
     res.status(500).json({ error: errorMessage });
   };
 
+  const requireAdminAuth = (req: any, res: any, next: any) => {
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT && !firebaseConfig.projectId) {
+      return res.status(500).json({ 
+        error: 'FIREBASE_SERVICE_ACCOUNT is not configured. To manage users, please generate a Service Account Key from Firebase Console -> Project Settings -> Service Accounts, and add it to your environment variables.'
+      });
+    }
+    next();
+  };
+
   // API Routes
-  app.post('/api/admin/create-user', async (req, res) => {
+  app.post('/api/admin/create-user', requireAdminAuth, async (req, res) => {
     const { email, password, displayName, name, role } = req.body;
     const finalDisplayName = displayName || name;
     
@@ -84,7 +105,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/admin/update-user-password', async (req, res) => {
+  app.post('/api/admin/update-user-password', requireAdminAuth, async (req, res) => {
     const { uid, newPassword } = req.body;
     try {
       await admin.auth().updateUser(uid, { password: newPassword });
@@ -94,7 +115,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/admin/update-user-profile', async (req, res) => {
+  app.post('/api/admin/update-user-profile', requireAdminAuth, async (req, res) => {
     const { uid, displayName, photoURL } = req.body;
     try {
       const updateParams: any = { displayName };
@@ -129,7 +150,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/admin/update-user-credentials', async (req, res) => {
+  app.post('/api/admin/update-user-credentials', requireAdminAuth, async (req, res) => {
     const { uid, email, password, displayName } = req.body;
     try {
       const updateParams: any = {};
@@ -160,7 +181,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/admin/delete-users', async (req, res) => {
+  app.post('/api/admin/delete-users', requireAdminAuth, async (req, res) => {
     const { uids } = req.body;
     if (!Array.isArray(uids)) {
       return res.status(400).json({ error: 'uids must be an array' });
@@ -179,7 +200,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/admin/delete-user', async (req, res) => {
+  app.post('/api/admin/delete-user', requireAdminAuth, async (req, res) => {
     const { uid } = req.body;
     try {
       await admin.auth().deleteUser(uid);

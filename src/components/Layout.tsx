@@ -109,6 +109,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     
     if (isAdmin) {
       navigation.push(
+        { name: 'Safa Dashboard', href: '/admin', icon: Shield, group: 'Portal' },
         { name: 'Staff Management', href: '/admin/staff', icon: Users, group: 'Portal' },
         { name: 'Staff Directory', href: '/admin/staff-directory', icon: Users, group: 'Portal' },
         { name: 'Manage About', href: '/admin/content', icon: Settings, group: 'Settings' },
