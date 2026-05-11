@@ -121,7 +121,7 @@ service cloud.firestore {
     match /students/{admissionNumber} {
       allow read: if true;
       allow create: if sameCampus(request.resource.data) && (isStaff() || isAcademic() || isAdmin());
-      allow update: if sameCampus(resource.data) && (
+      allow update: if sameCampus(request.resource.data) && sameCampus(resource.data) && (
         isAdmin() ||
         isStaff() ||
         isAcademic() ||
