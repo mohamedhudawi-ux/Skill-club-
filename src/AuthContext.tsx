@@ -55,29 +55,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userDoc.exists()) {
           const data = userDoc.data() as UserProfile;
           // Ensure safa@skill.edu has safa role and mdthaha213@gmail.com has master_admin role
-          const isMasterAdminEmail = firebaseUser.email === 'mdthaha213@gmail.com';
-          const isAdminEmail = isMasterAdminEmail || firebaseUser.email === 'admin@skill.edu';
-          const isSafaEmail = firebaseUser.email === 'safa@skill.edu' || firebaseUser.email?.endsWith('@safa.edu');
-          const isStaffEmail = firebaseUser.email?.endsWith('@staff.edu') || ['sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'].includes(firebaseUser.email || '');
-          const isSkillEduEmail = firebaseUser.email?.endsWith('@skill.edu');
+          const userEmail = firebaseUser.email?.toLowerCase() || '';
+          const isMasterAdminEmail = userEmail === 'mdthaha213@gmail.com';
+          const isAdminEmail = isMasterAdminEmail || userEmail === 'admin@skill.edu';
+          const isSafaEmail = userEmail === 'safa@skill.edu' || userEmail.endsWith('@safa.edu');
+          const isStaffEmail = userEmail.endsWith('@staff.edu') || ['sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'].includes(userEmail);
+          const isSkillEduEmail = userEmail.endsWith('@skill.edu');
           
           let finalProfile = data;
           
-          if (isMasterAdminEmail && data.role !== 'master_admin') {
-            finalProfile = { ...data, role: 'master_admin' as UserRole };
-            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
-          } else if (isAdminEmail && data.role !== 'admin' && data.role !== 'master_admin') {
-            finalProfile = { ...data, role: 'admin' as UserRole };
-            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
-          } else if (isSafaEmail && data.role !== 'safa') {
-            finalProfile = { ...data, role: 'safa' as UserRole };
-            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
-          } else if (isStaffEmail && data.role !== 'staff') {
-            finalProfile = { ...data, role: 'staff' as UserRole };
-            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
-          } else if (isSkillEduEmail && data.role !== 'student' && !isAdminEmail && !isSafaEmail && !isStaffEmail) {
-            finalProfile = { ...data, role: 'student' as UserRole };
-            await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+          try {
+            if (isMasterAdminEmail && data.role !== 'master_admin') {
+              finalProfile = { ...data, role: 'master_admin' as UserRole };
+              await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+            } else if (isAdminEmail && data.role !== 'admin' && data.role !== 'master_admin') {
+              finalProfile = { ...data, role: 'admin' as UserRole };
+              await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+            } else if (isSafaEmail && data.role !== 'safa') {
+              finalProfile = { ...data, role: 'safa' as UserRole };
+              await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+            } else if (isStaffEmail && data.role !== 'staff') {
+              finalProfile = { ...data, role: 'staff' as UserRole };
+              await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+            } else if (isSkillEduEmail && data.role !== 'student' && !isAdminEmail && !isSafaEmail && !isStaffEmail) {
+              finalProfile = { ...data, role: 'student' as UserRole };
+              await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
+            }
+          } catch (writeErr) {
+            console.error('Failed to update user role in Firestore:', writeErr);
           }
           
           // Auto-link student profile if email matches and admissionNumber is missing
@@ -141,23 +146,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const settingsDoc = await getDoc(doc(db, 'settings', 'system'));
           const registrationEnabled = settingsDoc.exists() ? settingsDoc.data().registrationEnabled !== false : true;
 
-          const isMasterAdminEmail = firebaseUser.email === 'mdthaha213@gmail.com';
-          const isAdminEmail = isMasterAdminEmail || firebaseUser.email === 'admin@skill.edu';
-          const isSafaEmail = firebaseUser.email === 'safa@skill.edu' || firebaseUser.email?.endsWith('@safa.edu');
-          const isStaffEmail = firebaseUser.email?.endsWith('@staff.edu') || ['sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'].includes(firebaseUser.email || '');
-          const isSkillEduEmail = firebaseUser.email?.endsWith('@skill.edu');
+          const userEmail = firebaseUser.email?.toLowerCase() || '';
+          const isMasterAdminEmail = userEmail === 'mdthaha213@gmail.com';
+          const isAdminEmail = isMasterAdminEmail || userEmail === 'admin@skill.edu';
+          const isSafaEmail = userEmail === 'safa@skill.edu' || userEmail.endsWith('@safa.edu');
+          const isStaffEmail = userEmail.endsWith('@staff.edu') || ['sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'].includes(userEmail);
+          const isSkillEduEmail = userEmail.endsWith('@skill.edu');
           
           let isPreRegisteredStudent = false;
           let linkedAdmissionNumber = '';
-          if (firebaseUser.email) {
+          if (userEmail) {
             const studentsRef = collection(db, 'students');
-            const q = query(studentsRef, where('email', '==', firebaseUser.email));
+            const q = query(studentsRef, where('email', '==', userEmail));
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
               isPreRegisteredStudent = true;
               linkedAdmissionNumber = querySnapshot.docs[0].id;
             } else if (isSkillEduEmail) {
-              const prefix = firebaseUser.email.split('@')[0];
+              const prefix = userEmail.split('@')[0];
               if (/^\d+$/.test(prefix)) {
                 linkedAdmissionNumber = prefix;
                 isPreRegisteredStudent = true;
@@ -170,8 +176,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const newRole: UserRole = isMasterAdminEmail ? 'master_admin' : (isAdminEmail ? 'admin' : (isSafaEmail ? 'safa' : (isStaffEmail ? 'staff' : 'student')));
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
+              email: userEmail,
+              displayName: firebaseUser.displayName || userEmail.split('@')[0] || 'New User',
               role: newRole,
               campusId: 'default', // Always assign to default campus for now to avoid undefined issues
               photoURL: firebaseUser.photoURL || '',

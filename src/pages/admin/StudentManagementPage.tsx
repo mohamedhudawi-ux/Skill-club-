@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, onSnapshot, query, doc, deleteDoc, updateDoc, setDoc, where, getDocs, limit, getDoc, startAfter, orderBy, addDoc, writeBatch, documentId } from 'firebase/firestore';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import firebaseConfig from '../../../firebase-applet-config.json';
 import { db } from '../../firebase';
@@ -829,7 +829,13 @@ export default function StudentManagementPage() {
 
       setStatus({ type: 'success', msg: `Starting provisioning for ${studentsToProvision.length} students...` });
 
-      const secondaryApp = initializeApp(firebaseConfig, 'SecondaryApp');
+      let secondaryApp;
+      try {
+        secondaryApp = initializeApp(firebaseConfig, 'SecondaryApp');
+      } catch (e) {
+        // App already exists, search for it
+        secondaryApp = getApp('SecondaryApp');
+      }
       const secondaryAuth = getAuth(secondaryApp);
       
       let successCount = 0;
@@ -890,8 +896,11 @@ export default function StudentManagementPage() {
           successCount++;
           setStatus({ type: 'success', msg: `Provisioned ${successCount}/${studentsToProvision.length}...` });
         } catch (err: any) {
-          if (err.code === 'auth/email-already-in-use') {
-            console.log(`Account already exists for ${admNo}, updating student doc...`);
+          if (err.code === 'auth/email-already-in-use' || err.code === 'auth/multi-factor-auth-required') {
+            const msg = err.code === 'auth/multi-factor-auth-required' 
+              ? `Account exists and has MFA for ${admNo}, updating student doc...`
+              : `Account already exists for ${admNo}, updating student doc...`;
+            console.log(msg);
             await updateDoc(doc(db, 'students', studentId), { email });
             successCount++;
           } else {
