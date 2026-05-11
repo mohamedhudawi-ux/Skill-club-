@@ -88,6 +88,7 @@ export default function Scoreboard() {
 
   const monthlyClubRankings = clubs
     .map(club => ({ ...club, monthlyPoints: monthlyClubPoints[club.id] || 0 }))
+    .filter(c => c.monthlyPoints > 0)
     .sort((a, b) => b.monthlyPoints - a.monthlyPoints);
 
   const monthlyStudentPoints = skillClubEntries
@@ -102,6 +103,7 @@ export default function Scoreboard() {
 
   const monthlyStudentRankings = rankings
     .map(student => ({ ...student, monthlyPoints: monthlyStudentPoints[student.admissionNumber] || 0 }))
+    .filter(s => s.monthlyPoints > 0)
     .sort((a, b) => b.monthlyPoints - a.monthlyPoints);
 
   // Focus Metrics
