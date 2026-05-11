@@ -517,26 +517,6 @@ export default function Scoreboard() {
           <Download size={18} /> Download Report
         </Button>
       </div>
-        
-        {isAdmin && (
-          <div className="flex justify-center gap-2 mt-4">
-            {!showConfirm ? (
-              <Button onClick={() => setShowConfirm(true)} variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50">
-                <Trash2 size={16} className="mr-2" /> Clear All Points
-              </Button>
-            ) : (
-              <div className="flex items-center gap-2 animate-in zoom-in duration-200">
-                <span className="text-xs font-bold text-rose-600 uppercase tracking-widest">Are you sure?</span>
-                <Button onClick={handleClearPoints} variant="danger" className="text-xs py-1">
-                  Yes, Clear
-                </Button>
-                <Button onClick={() => setShowConfirm(false)} variant="secondary" className="text-xs py-1">
-                  Cancel
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
 
       {/* Performance Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
