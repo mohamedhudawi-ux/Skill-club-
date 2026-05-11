@@ -30,9 +30,9 @@ export default function AcademicPanel() {
     const unsubscribers: (() => void)[] = [];
 
     // Class Marks
-    unsubscribers.push(onSnapshot(query(collection(db, 'CCEMarks'), where('campusId', '==', campusId)), (snap) => {
+    unsubscribers.push(onSnapshot(query(collection(db, 'cceMarks'), where('campusId', '==', campusId)), (snap) => {
       setClassMarks(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CCEMark)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'CCEMarks')));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'cceMarks')));
 
     // Class Counts
     unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId)), (snap) => {

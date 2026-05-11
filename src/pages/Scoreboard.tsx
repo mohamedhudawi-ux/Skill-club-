@@ -73,6 +73,82 @@ export default function Scoreboard() {
     return () => unsubscribers.forEach(unsub => unsub());
   }, [campusId]);
 
+  const handleClearPoints = async () => {
+    if (!campusId) return;
+    try {
+      setLoading(true);
+      
+      const [clubEntriesSnap, skillEntriesSnap] = await Promise.all([
+        getDocs(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId))),
+        getDocs(query(collection(db, 'skillClubEntries'), where('campusId', '==', campusId)))
+      ]);
+
+      const clubsSnap = await getDocs(query(collection(db, 'clubs'), where('campusId', '==', campusId)));
+      const studentsSnap = await getDocs(query(collection(db, 'students'), where('campusId', '==', campusId)));
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('campusId', '==', campusId), where('role', '==', 'student')));
+      
+      const batches = [];
+      let currentBatch = writeBatch(db);
+      let operationCount = 0;
+
+      const addOperation = (op: () => void) => {
+        op();
+        operationCount++;
+        if (operationCount === 450) {
+          batches.push(currentBatch);
+          currentBatch = writeBatch(db);
+          operationCount = 0;
+        }
+      };
+
+      clubsSnap.docs.forEach(docSnap => {
+        if ((docSnap.data().totalPoints || 0) > 0) addOperation(() => currentBatch.update(docSnap.ref, { totalPoints: 0 }));
+      });
+
+      clubEntriesSnap.docs.forEach(docSnap => {
+        addOperation(() => currentBatch.delete(docSnap.ref));
+      });
+
+      studentsSnap.docs.forEach(docSnap => {
+        if ((docSnap.data().totalPoints || 0) > 0) {
+          addOperation(() => currentBatch.update(docSnap.ref, { 
+            totalPoints: 0, 
+            categoryPoints: {}, 
+            badges: [] 
+          }));
+        }
+      });
+
+      skillEntriesSnap.docs.forEach(docSnap => {
+        addOperation(() => currentBatch.delete(docSnap.ref));
+      });
+
+      usersSnap.docs.forEach(docSnap => {
+        if ((docSnap.data().totalPoints || 0) > 0) {
+          addOperation(() => currentBatch.update(docSnap.ref, { 
+            totalPoints: 0, 
+            badges: [] 
+          }));
+        }
+      });
+
+      if (operationCount > 0) {
+        batches.push(currentBatch);
+      }
+      for (const batch of batches) {
+        await batch.commit();
+      }
+
+      toast.success('All points and entries cleared successfully!');
+      setShowConfirm(false);
+    } catch (error) {
+      console.error('Error clearing points:', error);
+      toast.error('Failed to clear points: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
 
@@ -439,14 +515,35 @@ export default function Scoreboard() {
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
-      <div className="flex justify-between items-center max-w-6xl mx-auto">
-        <div className="text-center max-w-2xl mx-auto space-y-4">
+      <div className="flex justify-between items-center max-w-6xl mx-auto flex-col md:flex-row gap-4">
+        <div className="text-center md:text-left max-w-2xl space-y-4">
           <h2 className="text-4xl font-black text-stone-900">SkillClub Scoreboard</h2>
           <p className="text-stone-500">Celebrating excellence and active participation in college life.</p>
         </div>
-        <Button onClick={handleDownloadReport} className="flex items-center gap-2">
-          <Download size={18} /> Download Report
-        </Button>
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          {isAdmin && (
+            <div>
+              {!showConfirm ? (
+                <Button onClick={() => setShowConfirm(true)} variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 flex items-center">
+                  <Trash2 size={16} className="mr-2" /> Clear All Points
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 animate-in zoom-in duration-200">
+                  <span className="text-xs font-bold text-rose-600 uppercase tracking-widest shrink-0">Are you sure?</span>
+                  <Button onClick={handleClearPoints} variant="danger" className="text-xs py-1">
+                    Yes, Clear
+                  </Button>
+                  <Button onClick={() => setShowConfirm(false)} variant="secondary" className="text-xs py-1">
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          <Button onClick={handleDownloadReport} className="flex items-center gap-2">
+            <Download size={18} /> Download Report
+          </Button>
+        </div>
       </div>
 
       {/* Hero Highlights */}

@@ -35,9 +35,9 @@ export function StaffDashboard() {
       const campusId = profile.campusId;
 
       // Class Marks
-      unsubscribers.push(onSnapshot(query(collection(db, 'CCEMarks'), where('campusId', '==', campusId)), (snap) => {
+      unsubscribers.push(onSnapshot(query(collection(db, 'cceMarks'), where('campusId', '==', campusId)), (snap) => {
         setClassMarks(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CCEMark)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'CCEMarks')));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'cceMarks')));
 
       // Top Students
       unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId), orderBy('totalPoints', 'desc'), limit(3)), (snap) => {
