@@ -38,7 +38,11 @@ export default function AcademicPanel() {
     unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId)), (snap) => {
       const counts: Record<string, number> = {};
       CLASS_LIST.forEach(className => {
-        counts[className] = snap.docs.filter(doc => doc.data().class === className).length;
+        counts[className] = snap.docs.filter(doc => {
+          const studentClass = doc.data().class || '';
+          const normalized = studentClass === '4' ? 'S4' : (studentClass === '5' ? 'S5' : (studentClass === '3' ? 'S3' : studentClass));
+          return normalized === className;
+        }).length;
       });
       setClassCounts(counts);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
@@ -101,33 +105,46 @@ export default function AcademicPanel() {
       const newTotalPoints = (foundStudent.totalPoints || 0) + points;
       const updatedBadges = checkBadges(newTotalPoints, foundStudent.badges || []);
 
-      await updateDoc(studentRef, {
-        totalPoints: increment(points),
-        [`categoryPoints.${marksData.category}`]: increment(points),
-        badges: updatedBadges
-      });
+      try {
+        await updateDoc(studentRef, {
+          totalPoints: increment(points),
+          [`categoryPoints.${marksData.category}`]: increment(points),
+          badges: updatedBadges
+        });
+      } catch (err) {
+        return handleFirestoreError(err, OperationType.UPDATE, `students/${marksData.admissionNumber}`);
+      }
 
       // Also update user profile if it exists
       const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', marksData.admissionNumber));
       const userDocs = await getDocs(usersQuery);
       if (!userDocs.empty) {
         const userRef = doc(db, 'users', userDocs.docs[0].id);
-        await updateDoc(userRef, {
-          totalPoints: increment(points),
-          badges: updatedBadges
-        });
+        try {
+          await updateDoc(userRef, {
+            totalPoints: increment(points),
+            badges: updatedBadges
+          });
+        } catch (err) {
+          console.warn('Failed to update user profile points, but student record was updated.');
+        }
       }
 
-      await addDoc(collection(db, 'skillClubEntries'), {
-        studentAdmissionNumber: marksData.admissionNumber,
-        category: marksData.category,
-        subCategory: marksData.subCategory,
-        points: points,
-        description: marksData.description,
-        addedBy: profile?.uid,
-        campusId: foundStudent.campusId || profile?.campusId || campusId,
-        timestamp: serverTimestamp()
-      });
+      try {
+        await addDoc(collection(db, 'skillClubEntries'), {
+          studentAdmissionNumber: marksData.admissionNumber,
+          category: marksData.category,
+          subCategory: marksData.subCategory,
+          points: points,
+          description: marksData.description,
+          addedBy: profile?.uid || 'system',
+          campusId: foundStudent.campusId || profile?.campusId || campusId || 'default',
+          timestamp: serverTimestamp()
+        });
+      } catch (err) {
+        console.error('SkillClubEntry creation error:', err);
+        return handleFirestoreError(err, OperationType.CREATE, 'skillClubEntries');
+      }
 
       // Update local state
       setFoundStudent(prev => prev ? {
@@ -143,7 +160,8 @@ export default function AcademicPanel() {
       setStatus({ type: 'success', msg: `Added ${points} points to ${foundStudent.name}!` });
       setMarksData({ ...marksData, points: '', description: '', subCategory: '' });
     } catch (error) {
-      setStatus({ type: 'error', msg: 'Failed to add marks.' });
+      console.error('Enter marks error:', error);
+      setStatus({ type: 'error', msg: 'An unexpected error occurred while adding marks.' });
     }
   };
 

@@ -9,6 +9,12 @@ export const normalizeClass = (cls: string): string => {
   
   // Classes that should NOT have sections: S3 to SS2
   const noSectionClasses = ['S3', 'S4', 'S5', 'SS1', 'SS2'];
+  
+  // Handle numeric shorthand
+  if (upper === '4') return 'S4';
+  if (upper === '5') return 'S5';
+  if (upper === '3') return 'S3';
+
   for (const base of noSectionClasses) {
     if (upper.startsWith(base)) return base;
   }

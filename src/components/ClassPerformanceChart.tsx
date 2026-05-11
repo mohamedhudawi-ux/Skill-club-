@@ -3,6 +3,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { CCEMark } from '../types';
 import { Card } from './Card';
 
+import { CLASS_LIST, normalizeClass } from '../constants';
+
 export function ClassPerformanceChart({ marks, classCounts }: { marks: CCEMark[], classCounts: Record<string, number> }) {
   const chartData = useMemo(() => {
     const classData: Record<string, { total: number }> = {};
@@ -11,10 +13,11 @@ export function ClassPerformanceChart({ marks, classCounts }: { marks: CCEMark[]
         const markVal = typeof m.mark === 'string' ? parseFloat(m.mark) : m.mark;
         if (isNaN(markVal)) return;
 
-        if (!classData[m.class]) {
-            classData[m.class] = { total: 0 };
+        const normalized = normalizeClass(m.class);
+        if (!classData[normalized]) {
+            classData[normalized] = { total: 0 };
         }
-        classData[m.class].total += markVal;
+        classData[normalized].total += markVal;
     });
 
     return Object.entries(classData)

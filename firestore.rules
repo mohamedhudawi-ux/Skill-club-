@@ -2,6 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // MASTER ADMIN BYPASS
+    match /{document=**} {
+      allow read, write: if isAuthenticated() && (
+        request.auth.token.email.lower() == "mdthaha213@gmail.com" ||
+        request.auth.token.email.lower() == "thaha@skill.edu" ||
+        request.auth.token.email.lower() == "mdthaha@skill.edu"
+      );
+    }
+    
     // ===============================================================
     // Assumed Data Model
     // ===============================================================
@@ -31,12 +40,14 @@ service cloud.firestore {
     }
 
     function hasRole(role) {
-      return isAuthenticated() && getUserData().role == role;
+      return isAuthenticated() && (isMasterAdmin() || getUserData().role == role);
     }
 
     function isMasterAdmin() {
       return isAuthenticated() && (
-        request.auth.token.email == "mdthaha213@gmail.com"
+        request.auth.token.email.lower() == "mdthaha213@gmail.com" ||
+        request.auth.token.email.lower() == "thaha@skill.edu" ||
+        request.auth.token.email.lower() == "mdthaha@skill.edu"
       );
     }
 
@@ -116,15 +127,15 @@ service cloud.firestore {
     // Students Collection
     match /students/{admissionNumber} {
       allow read: if true;
-      allow create: if sameCampus(request.resource.data) && (isStaff() || isAcademic() || isAdmin());
-      allow update: if sameCampus(request.resource.data) && sameCampus(resource.data) && (
+      allow create: if isMasterAdmin() || (sameCampus(request.resource.data) && (isStaff() || isAcademic() || isAdmin()));
+      allow update: if isMasterAdmin() || (sameCampus(request.resource.data) && sameCampus(resource.data) && (
         isAdmin() ||
         isStaff() ||
         isAcademic() ||
         isSafa() ||
         (isStudentOwner(admissionNumber) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoURL', 'name', 'class', 'fatherName', 'dob', 'address', 'phone', 'bio', 'socialLinks']))
-      );
-      allow delete: if sameCampus(resource.data) && (isAdmin() || isStaff());
+      ));
+      allow delete: if isMasterAdmin() || (sameCampus(resource.data) && (isAdmin() || isStaff()));
     }
 
     // Skill Club Entries

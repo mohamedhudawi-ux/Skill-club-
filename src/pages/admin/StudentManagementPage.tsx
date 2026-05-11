@@ -222,7 +222,16 @@ export default function StudentManagementPage() {
         const constraints: any[] = [where('campusId', '==', campusId), orderBy('name', 'asc'), limit(50)];
         
         if (selectedClass !== 'All') {
-          constraints.push(where('class', '==', selectedClass));
+          const classQuery = [selectedClass];
+          if (selectedClass === 'S5') classQuery.push('5');
+          if (selectedClass === 'S4') classQuery.push('4');
+          if (selectedClass === 'S3') classQuery.push('3');
+          
+          if (classQuery.length > 1) {
+            constraints.push(where('class', 'in', classQuery));
+          } else {
+            constraints.push(where('class', '==', selectedClass));
+          }
         }
 
         if (trimmedSearch && !isAdmissionSearch) {
