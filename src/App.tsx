@@ -26,7 +26,6 @@ import StaffManagementPage from './pages/admin/StaffManagementPage';
 import StaffDirectoryPage from './pages/admin/StaffDirectoryPage';
 import StudentManagementPage from './pages/admin/StudentManagementPage';
 import ClubPointsPage from './pages/admin/ClubPointsPage';
-import BulkUploadPage from './pages/admin/BulkUploadPage';
 import ContentPage from './pages/admin/ContentPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
@@ -191,11 +190,6 @@ function AppRoutes() {
         <Route path="/admin/club-points" element={
           <ProtectedRoute requiredRole="admin">
             <ClubPointsPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/admin/bulk-upload" element={
-          <ProtectedRoute requiredRole="admin">
-            <BulkUploadPage />
           </ProtectedRoute>
         } />
         <Route path="/admin/content" element={

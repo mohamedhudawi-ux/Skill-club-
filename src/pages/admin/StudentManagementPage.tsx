@@ -301,22 +301,22 @@ export default function StudentManagementPage() {
           header: true,
           skipEmptyLines: true,
           complete: (results) => {
-            const parsed = (results.data as any[]).map(data => ({
-              id: data.admissionNumber,
-              name: String(data.name || '').toUpperCase(),
-              admissionNumber: data.admissionNumber,
-              class: normalizeClass(data.class),
-              fatherName: data.fatherName || '',
-              dob: data.dob || '',
-              address: data.address || '',
-              phone: data.phone || '',
-              email: data.email || '',
+            const parsed = (results.data as any[]).map((data: any) => ({
+              id: String(data.admissionNumber || data.AdmissionNumber || ''),
+              name: String(data.name || data.Name || '').toUpperCase(),
+              admissionNumber: String(data.admissionNumber || data.AdmissionNumber || ''),
+              class: normalizeClass(String(data.class || data.Class || '')),
+              fatherName: String(data.fatherName || data.FatherName || ''),
+              dob: String(data.dob || data.DOB || data.Dob || ''),
+              address: String(data.address || data.Address || ''),
+              phone: String(data.phone || data.Phone || ''),
+              email: String(data.email || data.Email || ''),
               totalPoints: 0,
               categoryPoints: {},
               badges: [],
               campusId: campusId!,
               createdAt: new Date().toISOString()
-            }));
+            })).filter((s: any) => s.admissionNumber && s.name && s.admissionNumber !== 'undefined');
             setPendingStudents(parsed);
             setLoading(false);
           }
@@ -328,12 +328,12 @@ export default function StudentManagementPage() {
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
         const parsed = jsonData.map((data: any) => ({
-          id: String(data.admissionNumber || data.AdmissionNumber),
+          id: String(data.admissionNumber || data.AdmissionNumber || ''),
           name: String(data.name || data.Name || '').toUpperCase(),
-          admissionNumber: String(data.admissionNumber || data.AdmissionNumber),
+          admissionNumber: String(data.admissionNumber || data.AdmissionNumber || ''),
           class: normalizeClass(String(data.class || data.Class || '')),
           fatherName: String(data.fatherName || data.FatherName || ''),
-          dob: String(data.dob || data.DOB || ''),
+          dob: String(data.dob || data.DOB || data.Dob || ''),
           address: String(data.address || data.Address || ''),
           phone: String(data.phone || data.Phone || ''),
           email: String(data.email || data.Email || ''),
@@ -342,14 +342,14 @@ export default function StudentManagementPage() {
           badges: [],
           campusId: campusId!,
           createdAt: new Date().toISOString()
-        }));
+        })).filter((s: any) => s.admissionNumber && s.name && s.admissionNumber !== 'undefined');
         setPendingStudents(parsed);
         setLoading(false);
       } else if (fileExtension === 'pdf') {
         const pdfjs = await import('pdfjs-dist');
         // Use Vite's ?url import for the PDF worker to ensure it is bundled correctly
         // @ts-ignore
-        const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.min?url');
+        const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
         pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
         
         const arrayBuffer = await file.arrayBuffer();
@@ -411,8 +411,13 @@ export default function StudentManagementPage() {
         setLoading(false);
       }
     } catch (err: any) {
+      console.error(err);
       setStatus({ type: 'error', msg: 'Failed to import students: ' + err.message });
       setLoading(false);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -589,7 +594,7 @@ export default function StudentManagementPage() {
 
       const normalizedName = (name || '').toUpperCase();
       const normalizedStudentClass = normalizeClass(studentClass);
-      const studentData = {
+      const studentData: any = {
         name: normalizedName,
         admissionNumber: admissionNumber || '',
         class: normalizedStudentClass,
@@ -598,13 +603,15 @@ export default function StudentManagementPage() {
         address,
         phone,
         email,
-        photoURL: newStudentPhoto,
         totalPoints: 0,
         categoryPoints: {},
         badges: [],
         campusId: campusId,
         createdAt: new Date().toISOString()
       };
+      if (newStudentPhoto) {
+        studentData.photoURL = newStudentPhoto;
+      }
 
       if (admissionNumber) {
         await setDoc(doc(db, 'students', admissionNumber), studentData);
@@ -1158,10 +1165,10 @@ export default function StudentManagementPage() {
         </div>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex justify-end mt-4">
         <input type="file" ref={fileInputRef} onChange={handleBulkImport} accept=".csv, .pdf, .xlsx, .xls" className="hidden" />
         <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2">
-          <Upload size={18} /> Import CSV/Excel/PDF
+          <Upload size={18} /> Bulk Upload Students
         </Button>
       </div>
 

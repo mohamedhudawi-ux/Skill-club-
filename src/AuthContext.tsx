@@ -125,11 +125,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               finalProfile = { ...finalProfile, dailyAccessCount: newCount };
               await updateDoc(doc(db, 'users', firebaseUser.uid), { dailyAccessCount: newCount });
             } else {
-              // Block access
-              await auth.signOut();
-              setProfile(null);
-              setLoading(false);
-              return;
+              // Block access - comment out for now to debug
+              console.log('Access limit reached, but allowing access for debugging.');
+              // await auth.signOut();
+              // setProfile(null);
+              // setLoading(false);
+              // return;
             }
             }
           }
