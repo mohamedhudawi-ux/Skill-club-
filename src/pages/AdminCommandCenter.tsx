@@ -549,7 +549,7 @@ export default function AdminCommandCenter() {
     setLoading(true);
     setStatus({ type: 'success', msg: 'Starting restore...' });
     try {
-      if (!campusId) throw new Error("No campus selected.");
+      const targetCampus = campusId || 'default';
 
       // 1. Staff Members
       const staffMembers = [
@@ -569,7 +569,7 @@ export default function AdminCommandCenter() {
           email: staff.email,
           displayName: staff.name,
           role: 'staff',
-          campusId: campusId,
+          campusId: targetCampus,
           createdAt: new Date().toISOString()
         }, { merge: true });
       }
@@ -585,7 +585,7 @@ export default function AdminCommandCenter() {
           description: '',
           logoUrl: '',
           totalPoints: 0,
-          campusId: campusId
+          campusId: targetCampus
         });
       }
       await batchClubs.commit();
@@ -605,7 +605,7 @@ export default function AdminCommandCenter() {
           totalPoints: 0,
           categoryPoints: {},
           badges: [],
-          campusId: campusId,
+          campusId: targetCampus,
           createdAt: new Date().toISOString()
         }, { merge: true });
       }
@@ -632,7 +632,7 @@ export default function AdminCommandCenter() {
             totalPoints: 0,
             categoryPoints: {},
             badges: [],
-            campusId: campusId,
+            campusId: targetCampus,
             createdAt: new Date().toISOString()
          }, { merge: true });
       }
