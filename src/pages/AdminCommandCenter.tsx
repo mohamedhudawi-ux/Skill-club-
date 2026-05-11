@@ -91,6 +91,37 @@ export default function AdminCommandCenter() {
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ coll: string, id: string, title: string, message: string } | null>(null);
 
+  // Migration run once to fix missing campusId
+  useEffect(() => {
+    if (campusId && profile?.role === 'admin') {
+      const fixMissingCampusId = async () => {
+        const snap = await getDocs(collection(db, 'skillClubEntries'));
+        const batch = writeBatch(db);
+        let count = 0;
+        let batches = [];
+        let currentBatch = writeBatch(db);
+        snap.docs.forEach((d) => {
+          if (!d.data().campusId) {
+            currentBatch.update(d.ref, { campusId });
+            count++;
+            if (count % 500 === 0) {
+              batches.push(currentBatch);
+              currentBatch = writeBatch(db);
+            }
+          }
+        });
+        if (count % 500 !== 0) {
+          batches.push(currentBatch);
+        }
+        for (const b of batches) {
+          await b.commit();
+        }
+        if (count > 0) console.log(`Migrated ${count} skillClubEntries`);
+      };
+      fixMissingCampusId();
+    }
+  }, [campusId, profile]);
+
   // Form states
   const [newClub, setNewClub] = useState({ name: '', description: '', logoUrl: '' });
   const [newBoard, setNewBoard] = useState({ name: '', description: '' });

@@ -95,7 +95,12 @@ export default function Dashboard() {
         const aggregation: Record<string, {name: string, points: number, photoURL?: string}> = {};
         monthlyEntries.forEach(entry => {
           if (!aggregation[entry.studentAdmissionNumber]) {
-            aggregation[entry.studentAdmissionNumber] = { name: 'Unknown Student', points: 0 };
+            const stu = allStudents.find(s => s.admissionNumber === entry.studentAdmissionNumber);
+            aggregation[entry.studentAdmissionNumber] = { 
+              name: stu ? stu.name : 'Unknown Student', 
+              points: 0,
+              photoURL: stu?.photoURL
+            };
           }
           aggregation[entry.studentAdmissionNumber].points += entry.points;
         });

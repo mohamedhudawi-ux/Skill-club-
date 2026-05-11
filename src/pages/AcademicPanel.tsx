@@ -125,6 +125,7 @@ export default function AcademicPanel() {
         points: points,
         description: marksData.description,
         addedBy: profile?.uid,
+        campusId: foundStudent.campusId || profile?.campusId || campusId,
         timestamp: serverTimestamp()
       });
 
