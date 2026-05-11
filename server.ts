@@ -61,6 +61,12 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Request logging
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
+
   const handleAuthError = (error: any, res: any) => {
     // Attempt initialization if it failed earlier (maybe env vars changed)
     initAdmin();
@@ -97,6 +103,10 @@ async function startServer() {
   };
 
   // API Routes
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', time: new Date().toISOString(), mode: process.env.NODE_ENV });
+  });
+
   app.post('/api/admin/create-user', requireAdminAuth, async (req, res) => {
     const { email, password, displayName, name, role } = req.body;
     const finalDisplayName = displayName || name;
@@ -239,11 +249,11 @@ async function startServer() {
     }
   });
 
-  // Detect production mode - Strictly check NODE_ENV
-  const isProduction = process.env.NODE_ENV === 'production';
-  const distExists = fs.existsSync(path.join(__dirname, 'dist'));
+  // Detect production mode
+  const isProd = process.env.NODE_ENV === 'production';
+  const distPath = path.join(process.cwd(), 'dist');
   
-  if (!isProduction) {
+  if (!isProd) {
     console.log('Running in development mode with Vite middleware');
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -251,26 +261,32 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else if (distExists) {
-    console.log('Running in production mode serving static files');
-    const distPath = path.join(__dirname, 'dist');
-    
-    app.use(express.static(distPath, {
-      index: false,
-    }));
 
-    app.use('/assets', express.static(path.join(distPath, 'assets')));
-
-    app.get('*all', (req, res) => {
-      if (req.path.includes('.') && !req.path.endsWith('.html')) {
-        return res.status(404).send('Not found');
+    // Explicitly handle all non-API GET requests with Vite transform
+    app.get('*', async (req, res, next) => {
+      // Skip API requests from falling through to SPA fallback
+      if (req.path.startsWith('/api')) return next();
+      
+      const url = req.originalUrl;
+      try {
+        const templatePath = path.resolve(process.cwd(), 'index.html');
+        if (!fs.existsSync(templatePath)) {
+          return res.status(404).send('index.html not found');
+        }
+        let template = fs.readFileSync(templatePath, 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
       }
-      res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {
-    console.error('Production mode requested but "dist" directory not found.');
-    // We don't have a 'res' object here, it was a mistake in the previous edit.
-    // Just log the error and the server will listen but won't serve the SPA.
+    console.log('Running in production mode');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
   }
 
   app.listen(Number(PORT), '0.0.0.0', () => {
