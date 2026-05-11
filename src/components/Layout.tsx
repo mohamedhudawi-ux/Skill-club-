@@ -7,6 +7,7 @@ import {
   Users, 
   Settings, 
   LogOut,
+  Shield,
   Menu,
   X,
   Bell,

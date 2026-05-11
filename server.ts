@@ -14,23 +14,45 @@ if (fs.existsSync(configPath)) {
   firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 }
 
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      projectId: firebaseConfig.projectId || serviceAccount.project_id,
-    });
-    console.log('Firebase Admin initialized with service account.');
-  } catch (error) {
-    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT:', error);
-    admin.initializeApp({ projectId: firebaseConfig.projectId });
+function initAdmin() {
+  // Return if already initialized
+  if (admin.apps.length > 0) return true;
+
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: firebaseConfig.projectId || serviceAccount.project_id,
+      });
+      console.log('Firebase Admin initialized with service account.');
+      return true;
+    } catch (error) {
+      console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT:', error);
+    }
   }
-} else if (firebaseConfig.projectId) {
-  admin.initializeApp({
-    projectId: firebaseConfig.projectId,
-  });
+
+  // Attempt default initialization if PROJECT_ID is available, 
+  // but only if we are in environment that likely has default credentials.
+  // In AI Studio (Cloud Run), it SHOULD have them, but sometimes the setup is partial.
+  if (firebaseConfig.projectId) {
+    try {
+      admin.initializeApp({
+        projectId: firebaseConfig.projectId,
+      });
+      console.log('Firebase Admin initialized with Project ID (ADC).');
+      return true;
+    } catch (error) {
+      console.warn('Firebase Admin failed to initialize with Project ID (ADC):', error);
+    }
+  }
+
+  console.warn('Firebase Admin could not be initialized. Some admin features will fail.');
+  return false;
 }
+
+// Initial attempt
+initAdmin();
 
 async function startServer() {
   console.log('Starting server...');
@@ -40,6 +62,9 @@ async function startServer() {
   app.use(express.json());
 
   const handleAuthError = (error: any, res: any) => {
+    // Attempt initialization if it failed earlier (maybe env vars changed)
+    initAdmin();
+    
     console.error('Auth Error:', error);
     let errorMessage = error.message;
     
@@ -62,9 +87,10 @@ async function startServer() {
   };
 
   const requireAdminAuth = (req: any, res: any, next: any) => {
-    if (!process.env.FIREBASE_SERVICE_ACCOUNT && !firebaseConfig.projectId) {
+    // If admin is not initialized, we can't proceed with Auth operations
+    if (admin.apps.length === 0 && !initAdmin()) {
       return res.status(500).json({ 
-        error: 'FIREBASE_SERVICE_ACCOUNT is not configured. To manage users, please generate a Service Account Key from Firebase Console -> Project Settings -> Service Accounts, and add it to your environment variables.'
+        error: 'Firebase Admin is not initialized. Please add FIREBASE_SERVICE_ACCOUNT to your environment variables in the Settings menu.'
       });
     }
     next();
@@ -134,10 +160,11 @@ async function startServer() {
 
   app.post('/api/user/update-credentials', async (req, res) => {
     const { uid, email, password, displayName, currentPassword } = req.body;
-    // In a real app, we'd verify the currentPassword here if it's a self-service update
-    // But for this portal, we'll allow it if the UID matches the authenticated user's UID
-    // (The frontend will send the UID of the logged-in user)
+    // For this portal, we'll allow it if the UID matches the authenticated user's UID
     try {
+      if (admin.apps.length === 0 && !initAdmin()) {
+        throw new Error('Firebase Admin not initialized');
+      }
       const updateParams: any = {};
       if (email) updateParams.email = email;
       if (password) updateParams.password = password;
@@ -168,6 +195,9 @@ async function startServer() {
   app.post('/api/admin/get-user', async (req, res) => {
     const { uid } = req.body;
     try {
+      if (admin.apps.length === 0 && !initAdmin()) {
+        throw new Error('Firebase Admin not initialized');
+      }
       const userRecord = await admin.auth().getUser(uid);
       res.json({ 
         uid: userRecord.uid,
@@ -187,7 +217,6 @@ async function startServer() {
       return res.status(400).json({ error: 'uids must be an array' });
     }
     try {
-      // Firebase Admin SDK supports deleting up to 1000 users at once
       const result = await admin.auth().deleteUsers(uids);
       res.json({ 
         success: true, 
@@ -210,8 +239,9 @@ async function startServer() {
     }
   });
 
-  // Detect production mode
-  const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync(path.join(__dirname, 'dist'));
+  // Detect production mode - Strictly check NODE_ENV
+  const isProduction = process.env.NODE_ENV === 'production';
+  const distExists = fs.existsSync(path.join(__dirname, 'dist'));
   
   if (!isProduction) {
     console.log('Running in development mode with Vite middleware');
@@ -221,25 +251,26 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (distExists) {
     console.log('Running in production mode serving static files');
     const distPath = path.join(__dirname, 'dist');
     
-    // Serve static files with explicit logging or fallback check
     app.use(express.static(distPath, {
-      index: false, // Don't serve index.html from here, we handle it with the catch-all
+      index: false,
     }));
 
-    // Explicitly handle assets to avoid them being caught by the catch-all
     app.use('/assets', express.static(path.join(distPath, 'assets')));
 
     app.get('*all', (req, res) => {
-      // If the request looks like an asset that wasn't found, don't send index.html
       if (req.path.includes('.') && !req.path.endsWith('.html')) {
         return res.status(404).send('Not found');
       }
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  } else {
+    console.error('Production mode requested but "dist" directory not found.');
+    // We don't have a 'res' object here, it was a mistake in the previous edit.
+    // Just log the error and the server will listen but won't serve the SPA.
   }
 
   app.listen(Number(PORT), '0.0.0.0', () => {
