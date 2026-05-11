@@ -5,10 +5,11 @@ import { useAuth } from '../AuthContext';
 import { useSettings } from '../SettingsContext';
 import { collection, getDocs, query, orderBy, limit, where, getCountFromServer, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Student, WorkSubmission } from '../types';
+import { Student, WorkSubmission, CCEMark } from '../types';
 import { Button } from './Button';
 import { CLASS_LIST } from '../constants';
 import { BrandingHeader } from './BrandingHeader';
+import { ClassPerformanceChart } from './ClassPerformanceChart';
 
 export function StaffDashboard() {
   const { profile } = useAuth();
@@ -16,6 +17,7 @@ export function StaffDashboard() {
   const [topStudents, setTopStudents] = useState<Student[]>([]);
   const [classCounts, setClassCounts] = useState<Record<string, number>>({});
   const [recentSubmissions, setRecentSubmissions] = useState<WorkSubmission[]>([]);
+  const [classMarks, setClassMarks] = useState<CCEMark[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [filteredClassStudents, setFilteredClassStudents] = useState<Student[]>([]);
@@ -31,6 +33,11 @@ export function StaffDashboard() {
     const setupListeners = () => {
       if (!profile?.campusId) return;
       const campusId = profile.campusId;
+
+      // Class Marks
+      unsubscribers.push(onSnapshot(query(collection(db, 'CCEMarks'), where('campusId', '==', campusId)), (snap) => {
+        setClassMarks(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CCEMark)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'CCEMarks')));
 
       // Top Students
       unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId), orderBy('totalPoints', 'desc'), limit(3)), (snap) => {
@@ -260,6 +267,7 @@ export function StaffDashboard() {
           )}
 
           {/* Recent Submissions */}
+          <ClassPerformanceChart marks={classMarks} classCounts={classCounts} />
           <Card className="p-8 border-stone-100 shadow-sm">
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-2xl font-black text-stone-900 flex items-center gap-3">

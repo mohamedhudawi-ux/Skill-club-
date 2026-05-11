@@ -71,23 +71,27 @@ export default function Dashboard() {
 
   // Scoreboard fetch
   useEffect(() => {
-    if (activeTab === 'scoreboard' && isStudent && campusId) {
+    if (activeTab === 'scoreboard' && campusId) {
       const fetchScoreboard = async () => {
-        const qTop = query(collection(db, 'students'), where('campusId', '==', campusId), orderBy('totalPoints', 'desc'), limit(10));
+        const qTop = query(collection(db, 'students'), where('campusId', '==', campusId));
         const topSnap = await getDocs(qTop);
-        setTopStudents(topSnap.docs.map(doc => doc.data() as Student));
+        const allStudents = topSnap.docs.map(doc => doc.data() as Student);
+        allStudents.sort((a,b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+        setTopStudents(allStudents.slice(0, 10));
 
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const qMonthly = query(
           collection(db, 'skillClubEntries'),
-          where('campusId', '==', campusId),
-          where('timestamp', '>=', startOfMonth),
-          orderBy('timestamp', 'desc'),
-          limit(100)
+          where('campusId', '==', campusId)
         );
         const monthlySnap = await getDocs(qMonthly);
-        const monthlyEntries = monthlySnap.docs.map(doc => doc.data() as SkillClubEntry);
+        const allMonthly = monthlySnap.docs.map(doc => doc.data() as SkillClubEntry);
+        const monthlyEntries = allMonthly.filter(d => {
+            const dt = d.timestamp?.toDate ? d.timestamp.toDate() : new Date(d.timestamp);
+            return dt >= startOfMonth;
+        });
+
         const aggregation: Record<string, {name: string, points: number, photoURL?: string}> = {};
         monthlyEntries.forEach(entry => {
           if (!aggregation[entry.studentAdmissionNumber]) {
@@ -102,11 +106,8 @@ export default function Dashboard() {
         setTopMonthly(sorted);
 
         if (student?.class) {
-          const qClass = query(collection(db, 'students'), where('campusId', '==', campusId), where('class', '==', student.class), limit(50));
-          const classSnap = await getDocs(qClass);
-          const students = classSnap.docs.map(d => d.data() as Student);
-          students.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
-          setClassStudents(students);
+          const classStudents = allStudents.filter(s => s.class === student.class);
+          setClassStudents(classStudents);
         }
       };
       fetchScoreboard();

@@ -50,8 +50,10 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -69,6 +71,25 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+
+  import('sonner').then(({ toast }) => {
+    if (errorMessage.includes('requires an index') || errorMessage.includes('FAILED_PRECONDITION')) {
+      const urlMatch = errorMessage.match(/https:\/\/console\.firebase\.google\.com\S+/);
+      if (urlMatch) {
+        toast.error('Database Index Required', {
+          description: 'A Firebase index is missing for this page. Click below to create it.',
+          duration: 15000,
+          action: {
+            label: 'Create Index',
+            onClick: () => window.open(urlMatch[0], '_blank')
+          }
+        });
+      } else {
+        toast.error('Database Error', { description: 'A database error occurred. See console.' });
+      }
+    }
+  }).catch(() => {});
+
   throw new Error(JSON.stringify(errInfo));
 }
 

@@ -27,7 +27,10 @@ export default function Scoreboard() {
   const clubChartRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!campusId) return;
+    if (!campusId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const unsubscribers: (() => void)[] = [];
 
@@ -43,18 +46,24 @@ export default function Scoreboard() {
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubs')));
 
       // Student Rankings
-      unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId), orderBy('totalPoints', 'desc'), limit(50)), (snap) => {
-        setRankings(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
+      unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId)), (snap) => {
+        const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+        docs.sort((a,b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+        setRankings(docs.slice(0, 50));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
 
       // Club Point Entries (Current Month)
-      unsubscribers.push(onSnapshot(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId), where('timestamp', '>=', startTimestamp), limit(100)), (snap) => {
-        setClubPointEntries(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubPointEntry)));
+      unsubscribers.push(onSnapshot(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId)), (snap) => {
+        const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubPointEntry));
+        const filtered = docs.filter(d => safeToDate(d.timestamp) && safeToDate(d.timestamp)! >= startOfMonth);
+        setClubPointEntries(filtered.slice(0, 500));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'clubPointEntries')));
 
       // Skill Club Entries (Current Month)
-      unsubscribers.push(onSnapshot(query(collection(db, 'skillClubEntries'), where('campusId', '==', campusId), where('timestamp', '>=', startTimestamp), limit(100)), (snap) => {
-        setSkillClubEntries(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry)));
+      unsubscribers.push(onSnapshot(query(collection(db, 'skillClubEntries'), where('campusId', '==', campusId)), (snap) => {
+        const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SkillClubEntry));
+        const filtered = docs.filter(d => safeToDate(d.timestamp) && safeToDate(d.timestamp)! >= startOfMonth);
+        setSkillClubEntries(filtered.slice(0, 500));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'skillClubEntries')));
 
       setLoading(false);

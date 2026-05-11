@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, doc, getDoc, updateDoc, increment, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, addDoc, doc, getDoc, updateDoc, increment, serverTimestamp, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../AuthContext';
-import { SKILL_CLUB_CATEGORIES, Student, SkillClubCategory, BADGES, SKILL_CLUB_RULES } from '../types';
-import { Star, Search, CheckCircle2, AlertCircle, FileText, PlusCircle, ClipboardList, GraduationCap } from 'lucide-react';
+import { SKILL_CLUB_CATEGORIES, Student, SkillClubCategory, BADGES, SKILL_CLUB_RULES, CCEMark } from '../types';
+import { Star, Search, CheckCircle2, AlertCircle, FileText, PlusCircle, ClipboardList, GraduationCap, BarChart as BarChartIcon } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { AdminSubmissions } from '../components/AdminSubmissions';
 import { AdminGraceMarks } from '../components/AdminGraceMarks';
+import { ClassPerformanceChart } from '../components/ClassPerformanceChart';
+import { CLASS_LIST } from '../constants';
 
 export default function AcademicPanel() {
-  const { profile, isStaff, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'performance' | 'submissions' | 'gracemarks' | 'reports'>('performance');
+  const { profile, isStaff, isAdmin, campusId } = useAuth();
+  const [activeTab, setActiveTab] = useState<'performance' | 'class-performance' | 'submissions' | 'gracemarks' | 'reports'>('performance');
 
   useEffect(() => {
     if (isStaff && !isAdmin) {
@@ -20,6 +22,29 @@ export default function AcademicPanel() {
   }, [isStaff, isAdmin]);
   const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [downloading, setDownloading] = useState(false);
+  const [classMarks, setClassMarks] = useState<CCEMark[]>([]);
+  const [classCounts, setClassCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!campusId) return;
+    const unsubscribers: (() => void)[] = [];
+
+    // Class Marks
+    unsubscribers.push(onSnapshot(query(collection(db, 'CCEMarks'), where('campusId', '==', campusId)), (snap) => {
+      setClassMarks(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CCEMark)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'CCEMarks')));
+
+    // Class Counts
+    unsubscribers.push(onSnapshot(query(collection(db, 'students'), where('campusId', '==', campusId)), (snap) => {
+      const counts: Record<string, number> = {};
+      CLASS_LIST.forEach(className => {
+        counts[className] = snap.docs.filter(doc => doc.data().class === className).length;
+      });
+      setClassCounts(counts);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'students')));
+
+    return () => unsubscribers.forEach(unsub => unsub());
+  }, [campusId]);
   
   // Enter Marks State
   const [marksData, setMarksData] = useState({
@@ -194,6 +219,7 @@ export default function AcademicPanel() {
         
         <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-stone-100 shadow-sm">
           {isAdmin && (
+            <>
             <button
               onClick={() => setActiveTab('performance')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
@@ -202,6 +228,15 @@ export default function AcademicPanel() {
             >
               <Star size={16} /> Performance
             </button>
+            <button
+              onClick={() => setActiveTab('class-performance')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                activeTab === 'class-performance' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'text-stone-500 hover:bg-stone-50'
+              }`}
+            >
+              <BarChartIcon size={16} /> Class Performance
+            </button>
+            </>
           )}
           <button
             onClick={() => setActiveTab('submissions')}
@@ -420,6 +455,12 @@ export default function AcademicPanel() {
             </Button>
           </div>
         </Card>
+      )}
+
+      {activeTab === 'class-performance' && (
+        <div className="max-w-4xl mx-auto">
+          <ClassPerformanceChart marks={classMarks} classCounts={classCounts} />
+        </div>
       )}
 
       {activeTab === 'submissions' && <AdminSubmissions />}
