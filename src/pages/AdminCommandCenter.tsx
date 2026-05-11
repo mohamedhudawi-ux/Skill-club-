@@ -1924,7 +1924,10 @@ export default function AdminCommandCenter() {
           ))}
         </nav>
 
-        <div className="p-6 border-t border-stone-800">
+        <div className="p-6 border-t border-stone-800 space-y-4">
+          <Button variant="danger" className="w-full" onClick={handleRestoreBasicData}>
+            Restore Basic Data
+          </Button>
           <Button 
             variant="ghost" 
             className="w-full justify-start text-stone-500 hover:text-rose-400 hover:bg-rose-950/50"
@@ -1934,6 +1937,8 @@ export default function AdminCommandCenter() {
             Sign Out
           </Button>
         </div>
+[diff_block_end]
+
       </div>
 
       {/* Main Content */}
