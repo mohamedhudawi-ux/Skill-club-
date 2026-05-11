@@ -219,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isStudent: profile?.role === 'student',
     isAcademic: profile?.role === 'academic' || profile?.role === 'admin' || profile?.role === 'master_admin',
     isMasterAdmin: profile?.role === 'master_admin',
-    campusId: profile?.campusId,
+    campusId: profile?.campusId || 'default',
     currentCampus,
   };
 

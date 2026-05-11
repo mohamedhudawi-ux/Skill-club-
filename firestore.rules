@@ -79,7 +79,11 @@ service cloud.firestore {
     function sameCampus(resourceData) {
       let userCampus = getUserData().campusId != null ? getUserData().campusId : 'default';
       let resourceCampus = resourceData.campusId != null ? resourceData.campusId : 'default';
-      return isMasterAdmin() || (isAuthenticated() && userCampus == resourceCampus);
+      
+      // If student document doesn't have a campusId, treat it as 'default'
+      let finalResourceCampus = resourceData.campusId != null ? resourceData.campusId : 'default';
+      
+      return isMasterAdmin() || (isAuthenticated() && userCampus == finalResourceCampus);
     }
 
     // Validation Functions

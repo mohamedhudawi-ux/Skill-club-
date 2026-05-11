@@ -119,6 +119,29 @@ export default function AdminCommandCenter() {
         if (count > 0) console.log(`Migrated ${count} skillClubEntries`);
       };
       fixMissingCampusId();
+
+      const fixStudentsCampusId = async () => {
+        const snap = await getDocs(collection(db, 'students'));
+        let count = 0;
+        let batchCount = 0;
+        let currentBatch = writeBatch(db);
+
+        for (const d of snap.docs) {
+          if (!d.data().campusId) {
+            currentBatch.update(d.ref, { campusId: 'default' });
+            count++;
+            batchCount++;
+            if (batchCount === 450) { 
+              await currentBatch.commit();
+              currentBatch = writeBatch(db);
+              batchCount = 0;
+            }
+          }
+        }
+        await currentBatch.commit();
+        if (count > 0) console.log(`Migrated ${count} students`);
+      };
+      fixStudentsCampusId();
     }
   }, [campusId, profile]);
 
