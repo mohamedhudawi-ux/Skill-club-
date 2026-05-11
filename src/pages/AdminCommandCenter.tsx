@@ -142,6 +142,24 @@ export default function AdminCommandCenter() {
         if (count > 0) console.log(`Migrated ${count} students`);
       };
       fixStudentsCampusId();
+
+      const cleanupStudentsWithoutNames = async () => {
+        const snap = await getDocs(query(collection(db, 'students'), where('campusId', '==', campusId)));
+        let count = 0;
+        const batch = writeBatch(db);
+        
+        for (const doc of snap.docs) {
+          if (!doc.data().name || doc.data().name.trim() === '') {
+            batch.delete(doc.ref);
+            count++;
+          }
+        }
+        if (count > 0) {
+          await batch.commit();
+          console.log(`Cleaned up ${count} students without names.`);
+        }
+      };
+      cleanupStudentsWithoutNames(); // Uncomment to run
     }
   }, [campusId, profile]);
 
