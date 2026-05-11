@@ -73,89 +73,6 @@ export default function Scoreboard() {
     return () => unsubscribers.forEach(unsub => unsub());
   }, [campusId]);
 
-  const handleClearPoints = async () => {
-    if (!campusId) return;
-    try {
-      setLoading(true);
-      
-      // Only fetch entries that exist in this campus
-      const [clubEntriesSnap, skillEntriesSnap] = await Promise.all([
-        getDocs(query(collection(db, 'clubPointEntries'), where('campusId', '==', campusId))),
-        getDocs(query(collection(db, 'skillClubEntries'), where('campusId', '==', campusId)))
-      ]);
-
-      // Only fetch clubs with points in this campus
-      const clubsSnap = await getDocs(query(collection(db, 'clubs'), where('campusId', '==', campusId), where('totalPoints', '>', 0)));
-      
-      // Only fetch students with points or badges in this campus
-      const studentsSnap = await getDocs(query(collection(db, 'students'), where('campusId', '==', campusId), where('totalPoints', '>', 0)));
-      
-      // Only fetch users (students) with points or badges in this campus
-      const usersSnap = await getDocs(query(collection(db, 'users'), where('campusId', '==', campusId), where('role', '==', 'student'), where('totalPoints', '>', 0)));
-      
-      const batches = [];
-      let currentBatch = writeBatch(db);
-      let operationCount = 0;
-
-      const addOperation = (op: () => void) => {
-        op();
-        operationCount++;
-        if (operationCount === 500) {
-          batches.push(currentBatch);
-          currentBatch = writeBatch(db);
-          operationCount = 0;
-        }
-      };
-
-      // Clear Clubs
-      clubsSnap.docs.forEach(docSnap => {
-        addOperation(() => currentBatch.update(docSnap.ref, { totalPoints: 0 }));
-      });
-
-      // Clear Club Entries
-      clubEntriesSnap.docs.forEach(docSnap => {
-        addOperation(() => currentBatch.delete(docSnap.ref));
-      });
-
-      // Clear Students
-      studentsSnap.docs.forEach(docSnap => {
-        addOperation(() => currentBatch.update(docSnap.ref, { 
-          totalPoints: 0, 
-          categoryPoints: {}, 
-          badges: [] 
-        }));
-      });
-
-      // Clear Skill Club Entries
-      skillEntriesSnap.docs.forEach(docSnap => {
-        addOperation(() => currentBatch.delete(docSnap.ref));
-      });
-
-      // Clear Users (mirrored points)
-      usersSnap.docs.forEach(docSnap => {
-        addOperation(() => currentBatch.update(docSnap.ref, { 
-          totalPoints: 0, 
-          badges: [] 
-        }));
-      });
-
-      if (operationCount > 0) {
-        batches.push(currentBatch);
-      }
-      for (const batch of batches) {
-        await batch.commit();
-      }
-
-      toast.success('All points and entries cleared successfully!');
-      setShowConfirm(false);
-    } catch (error) {
-      console.error('Error clearing points:', error);
-      toast.error('Failed to clear points: ' + (error instanceof Error ? error.message : String(error)));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
 
@@ -186,6 +103,18 @@ export default function Scoreboard() {
   const monthlyStudentRankings = rankings
     .map(student => ({ ...student, monthlyPoints: monthlyStudentPoints[student.admissionNumber] || 0 }))
     .sort((a, b) => b.monthlyPoints - a.monthlyPoints);
+
+  // Focus Metrics
+  const overallHighestStudent = rankings[0] || null;
+  
+  const monthlyClassPoints = monthlyStudentRankings.reduce((acc, student) => {
+    const className = student.class || 'Unassigned';
+    if(className !== 'Unassigned') {
+      acc[className] = (acc[className] || 0) + (student.monthlyPoints || 0);
+    }
+    return acc;
+  }, {} as Record<string, number>);
+  const monthlyTopClass = Object.entries(monthlyClassPoints).sort((a,b) => b[1] - a[1])[0] || null;
 
   const sortedClubs = [...clubs].sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
 
@@ -516,6 +445,46 @@ export default function Scoreboard() {
         <Button onClick={handleDownloadReport} className="flex items-center gap-2">
           <Download size={18} /> Download Report
         </Button>
+      </div>
+
+      {/* Hero Highlights */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <Card className="p-8 bg-amber-50 border-amber-200">
+          <p className="text-amber-800 text-xs font-black uppercase tracking-widest mb-2">Monthly Best Student</p>
+          <div className="flex items-center gap-4">
+            <img src={monthlyStudentRankings[0]?.photoURL || `https://ui-avatars.com/api/?name=${monthlyStudentRankings[0]?.name || '?'}&background=random`} className="w-16 h-16 rounded-full shadow-md" alt="" />
+            <div>
+              <h4 className="text-2xl font-black text-amber-950">{monthlyStudentRankings[0]?.name || 'N/A'}</h4>
+              <p className="text-amber-700 font-bold">{monthlyStudentRankings[0]?.monthlyPoints || 0} Monthly Pts</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-8 bg-emerald-50 border-emerald-200">
+          <p className="text-emerald-800 text-xs font-black uppercase tracking-widest mb-2">Monthly Best Class</p>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-emerald-200 text-emerald-700">
+              <Users size={32} />
+            </div>
+            <div>
+              <h4 className="text-3xl font-black text-emerald-950">{monthlyTopClass?.[0] || 'N/A'}</h4>
+              <p className="text-emerald-700 font-bold">{monthlyTopClass?.[1] || 0} Monthly Pts</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-8 bg-blue-50 border-blue-200">
+          <p className="text-blue-800 text-xs font-black uppercase tracking-widest mb-2">Total Highest Points</p>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-blue-200 text-blue-700">
+              <Medal size={32} />
+            </div>
+            <div>
+              <h4 className="text-2xl font-black text-blue-950">{overallHighestStudent?.name || 'N/A'}</h4>
+              <p className="text-blue-700 font-bold">{overallHighestStudent?.totalPoints || 0} Total Overall</p>
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* Performance Charts */}
