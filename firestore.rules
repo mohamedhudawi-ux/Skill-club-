@@ -77,7 +77,9 @@ service cloud.firestore {
     }
 
     function sameCampus(resourceData) {
-      return isMasterAdmin() || (isAuthenticated() && getUserData().campusId == resourceData.campusId);
+      let userCampus = getUserData().campusId != null ? getUserData().campusId : 'default';
+      let resourceCampus = resourceData.campusId != null ? resourceData.campusId : 'default';
+      return isMasterAdmin() || (isAuthenticated() && userCampus == resourceCampus);
     }
 
     // Validation Functions

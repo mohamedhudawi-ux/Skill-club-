@@ -173,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: firebaseUser.email || '',
               displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
               role: newRole,
-              campusId: isMasterAdminEmail ? undefined : 'default', // Assign to default campus for others
+              campusId: 'default', // Always assign to default campus for now to avoid undefined issues
               photoURL: firebaseUser.photoURL || '',
               admissionNumber: linkedAdmissionNumber || undefined,
               createdAt: new Date().toISOString()
