@@ -84,7 +84,7 @@ service cloud.firestore {
 
     // Validation Functions
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'displayName', 'role']) &&
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'campusId', 'createdAt']) &&
              data.uid is string &&
              data.email is string &&
              data.displayName is string &&

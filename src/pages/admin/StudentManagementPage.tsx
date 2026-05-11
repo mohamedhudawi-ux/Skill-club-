@@ -314,7 +314,7 @@ export default function StudentManagementPage() {
               totalPoints: 0,
               categoryPoints: {},
               badges: [],
-              campusId: campusId!,
+              campusId: campusId || 'default',
               createdAt: new Date().toISOString()
             })).filter((s: any) => s.admissionNumber && s.name && s.admissionNumber !== 'undefined');
             setPendingStudents(parsed);
@@ -340,7 +340,7 @@ export default function StudentManagementPage() {
           totalPoints: 0,
           categoryPoints: {},
           badges: [],
-          campusId: campusId!,
+          campusId: campusId || 'default',
           createdAt: new Date().toISOString()
         })).filter((s: any) => s.admissionNumber && s.name && s.admissionNumber !== 'undefined');
         setPendingStudents(parsed);
@@ -393,7 +393,7 @@ export default function StudentManagementPage() {
                   totalPoints: 0,
                   categoryPoints: {},
                   badges: [],
-                  campusId: campusId!,
+                  campusId: campusId || 'default',
                   createdAt: new Date().toISOString()
                 });
               }

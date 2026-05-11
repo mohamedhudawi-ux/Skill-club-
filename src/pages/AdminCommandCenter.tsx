@@ -566,6 +566,7 @@ export default function AdminCommandCenter() {
       for (const staff of staffMembers) {
         const staffRef = doc(db, 'users', staff.email);
         batch1.set(staffRef, {
+          uid: `staff_${staff.email}`,
           email: staff.email,
           displayName: staff.name,
           role: 'staff',
