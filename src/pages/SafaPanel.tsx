@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { collection, query, where, onSnapshot, orderBy, limit, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, writeBatch, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { useSettings } from '../SettingsContext';
 import { Program, GalleryItem, Club, Board, OfficeBearer, ClubMember, BoardMember, ClubPointEntry, MonthlyReport } from '../types';
@@ -154,6 +154,8 @@ export default function SafaPanel() {
       setNewClubPoints({ clubId: '', points: 0, description: '' });
       setStatus({ type: 'success', msg: 'Points awarded to club!' });
     } catch (error) {
+      console.error('Error adding club points:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'clubPointEntries');
       setStatus({ type: 'error', msg: 'Failed to award points.' });
     }
   };

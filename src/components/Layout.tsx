@@ -22,14 +22,33 @@ import {
   Globe,
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
+import { Campus } from '../types';
 import { useSettings } from '../SettingsContext';
 import { auth } from '../firebase';
 import { getFullHijriDate } from '../utils/hijri';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { profile, isAdmin, isStaff, isSafa, isAcademic, isMasterAdmin } = useAuth();
+  const { profile, isAdmin, isStaff, isSafa, isAcademic, isMasterAdmin, campusId, switchCampus, currentCampus } = useAuth();
   const { siteContent } = useSettings();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
+
+  useEffect(() => {
+    if (isMasterAdmin) {
+      const fetchCampuses = async () => {
+        try {
+          const snap = await getDocs(collection(db, 'campuses'));
+          setCampuses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Campus)));
+        } catch (error) {
+          console.error('Error fetching campuses:', error);
+        }
+      };
+      fetchCampuses();
+    }
+  }, [isMasterAdmin]);
+
   const location = useLocation();
   const [dates, setDates] = useState({ gregorian: '', hijri: '' });
 
@@ -104,7 +123,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     
     if (isMasterAdmin) {
       navigation.push(
-        { name: 'Master Board', href: '/master', icon: Globe, group: 'Master' }
+        { name: 'Master Board', href: '/master-dashboard', icon: Globe, group: 'Master' }
       );
     }
     
@@ -113,6 +132,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { name: 'Safa Dashboard', href: '/admin', icon: Shield, group: 'Portal' },
         { name: 'Staff Management', href: '/admin/staff', icon: Users, group: 'Portal' },
         { name: 'Staff Directory', href: '/admin/staff-directory', icon: Users, group: 'Portal' },
+        { name: 'Clubs & Boards', href: '/admin/clubs-boards', icon: Settings, group: 'Portal' },
         { name: 'Manage About', href: '/admin/content', icon: Settings, group: 'Settings' },
         { name: 'System Settings', href: '/admin/settings', icon: Settings, group: 'Settings' }
       );
@@ -414,6 +434,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <Menu size={20} />
                 </button>
               </div>
+              
+              {isMasterAdmin && (
+                <div className="flex items-center gap-2">
+                  <Building2 size={16} className="text-emerald-600" />
+                  <select 
+                    value={campusId}
+                    onChange={(e) => switchCampus(e.target.value)}
+                    className="text-xs font-bold bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="default">Default Campus</option>
+                    {campuses.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             
             <div className="text-stone-500 text-sm font-medium">

@@ -5,9 +5,10 @@ service cloud.firestore {
     // MASTER ADMIN BYPASS
     match /{document=**} {
       allow read, write: if request.auth != null && (
-        request.auth.token.email == "mdthaha213@gmail.com" ||
-        request.auth.token.email == "thaha@skill.edu" ||
-        request.auth.token.email == "mdthaha@skill.edu"
+        request.auth.token.email.lower() == "mdthaha213@gmail.com" ||
+        request.auth.token.email.lower() == "thaha@skill.edu" ||
+        request.auth.token.email.lower() == "mdthaha@skill.edu" ||
+        request.auth.token.email.lower() == "thahamd@skill.edu"
       );
     }
     
@@ -48,8 +49,24 @@ service cloud.firestore {
              request.auth.token.email != null && (
                request.auth.token.email.lower() == "mdthaha213@gmail.com" ||
                request.auth.token.email.lower() == "thaha@skill.edu" ||
-               request.auth.token.email.lower() == "mdthaha@skill.edu"
+               request.auth.token.email.lower() == "mdthaha@skill.edu" ||
+               request.auth.token.email.lower() == "thahamd@skill.edu"
              );
+    }
+
+    function isMasterAdminEmail(email) {
+      let lowEmail = email.lower();
+      return lowEmail == "mdthaha213@gmail.com" || 
+             lowEmail == "thaha@skill.edu" || 
+             lowEmail == "mdthaha@skill.edu" || 
+             lowEmail == "thahamd@skill.edu";
+    }
+
+    function isAdminEmail(email) {
+      let lowEmail = email.lower();
+      return isMasterAdminEmail(email) || 
+             lowEmail == "admin@skill.edu" || 
+             lowEmail == "admin@safa.edu";
     }
 
     function isAdmin() {
@@ -119,8 +136,12 @@ service cloud.firestore {
         isMasterAdmin() ||
         isAdmin() || 
         isStaff() || 
-        isOwner(uid) || 
-        ((isSafa() || isAcademic()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'badges', 'totalPoints']))
+        (isOwner(uid) && (
+          (isMasterAdminEmail(request.auth.token.email) && request.resource.data.role == 'master_admin') ||
+          (isAdminEmail(request.auth.token.email) && request.resource.data.role == 'admin') ||
+          (request.resource.data.role == resource.data.role && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'phone', 'dob', 'address', 'bio', 'socialLinks']))
+        )) ||
+        ((isSafa() || isAcademic() || isStaff()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'badges', 'totalPoints']))
       );
       allow delete: if isMasterAdmin() || isAdmin() || isStaff();
     }

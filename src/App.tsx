@@ -39,6 +39,8 @@ import { CCEMarksWrapper } from './components/CCEMarksWrapper';
 
 import ResumeBuilder from './pages/ResumeBuilder';
 
+import ClubsBoardsManagementPage from './pages/admin/ClubsBoardsManagementPage';
+
 function AppRoutes() {
   const { profile, loading: authLoading } = useAuth();
   const { settings, loading: settingsLoading, quotaExceeded } = useSettings();
@@ -200,6 +202,11 @@ function AppRoutes() {
         <Route path="/admin/settings" element={
           <ProtectedRoute requiredRole="admin">
             <SettingsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/clubs-boards" element={
+          <ProtectedRoute requiredRole="admin">
+            <ClubsBoardsManagementPage />
           </ProtectedRoute>
         } />
         <Route path="/profile" element={

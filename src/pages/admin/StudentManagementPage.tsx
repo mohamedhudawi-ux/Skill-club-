@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, onSnapshot, query, doc, deleteDoc, updateDoc, setDoc, where, getDocs, limit, getDoc, startAfter, orderBy, addDoc, writeBatch, documentId } from 'firebase/firestore';
-import { initializeApp, getApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import firebaseConfig from '../../../firebase-applet-config.json';
 import { db } from '../../firebase';
 import { Student } from '../../types';
 import { CLASS_LIST, normalizeClass } from '../../constants';
@@ -690,41 +687,16 @@ export default function StudentManagementPage() {
   const handleFixNames = async () => {
     setFixNamesConfirm(false);
     const nameMapping: Record<string, string> = {
-      "500": "MUHAMMAD ZEESHAN",
-      "531": "MUHAMMED RAZA",
-      "542": "SHAMS KAMAR",
-      "544": "MD RAHBAR ISLAM",
-      "548": "MD TASIR HUSAIN",
-      "513": "SHEK SAMEER",
-      "551": "REHAN ALAM",
-      "555": "MULLA ASRARUL HAQ",
-      "561": "S HAMMAD RAJA",
-      "569": "MULLA HAYASAB GARI MAHBOOB VALI",
-      "588": "SHAFQATULLAH KARIMI",
-      "683": "AHMAD RAZA KHAN",
-      "571": "SHAIK MAHAMMAD HUSSAIN",
-      "605": "RAIYAN WARIS",
-      "606": "P ABDUL MATIN KHAN",
-      "613": "MOHAMMED FAIZAN",
-      "614": "MOIZ ASIF",
-      "618": "ABDUL DANISH",
-      "620": "MD SAHIL ANSARI",
-      "621": "SYED SAIF",
-      "622": "MOHAMMED ISMAIL",
-      "623": "T USMAN",
-      "627": "SHAIK ANIS",
-      "628": "NUMAN ALI",
-      "633": "ANSARI INAIF SADIQ",
-      "644": "FARHAN",
-      "650": "SHAIK MOHAMMED AFFAN",
-      "660": "MOHAMMED FAISAL",
-      "661": "GAJULA ABDULLA",
-      "677": "S RIYAZ",
-      "678": "SHAIK ASHRAF ALI"
+      '883': 'MUHAMMED SWALIH V',
+      '891': 'SHIBILI O',
+      '881': 'SAYYID MUHAMMED SHAHINSHA M P',
+      '887': 'MUHAMMED JAWAD T',
+      '885': 'MUHAMMED ANSHAD P',
+      '889': 'MUHAMMED SHAHEEN S'
     };
 
     setLoading(true);
-    setStatus({ type: 'success', msg: `Starting name updates for ${Object.keys(nameMapping).length} students...` });
+    setStatus({ type: 'success', msg: `Starting name updates...` });
 
     try {
       let successCount = 0;
@@ -737,27 +709,28 @@ export default function StudentManagementPage() {
           const snap = await getDocs(q);
           
           if (!snap.empty) {
-            const studentRef = snap.docs[0].ref;
-            await updateDoc(studentRef, { name: newName });
+            for (const studentDoc of snap.docs) {
+              await updateDoc(studentDoc.ref, { name: newName });
+              
+              // Also update user profile if email matches
+              const studentData = studentDoc.data();
+              if (studentData.email) {
+                const userQuery = query(collection(db, 'users'), where('email', '==', studentData.email));
+                const userSnap = await getDocs(userQuery);
+                for (const uDoc of userSnap.docs) {
+                  await updateDoc(uDoc.ref, { displayName: newName });
+                }
+              }
+            }
           } else {
-            // If doesn't exist, create it with admNo as ID (standardize)
-            await setDoc(doc(db, 'students', admNo), {
-              name: newName,
-              admissionNumber: admNo,
-              totalPoints: 0,
-              categoryPoints: {},
-              badges: [],
-              campusId: campusId,
-              createdAt: new Date().toISOString()
-            });
-          }
-
-          // Update users collection if exists
-          const usersQuery = query(collection(db, 'users'), where('campusId', '==', campusId), where('admissionNumber', '==', admNo));
-          const userDocs = await getDocs(usersQuery);
-          if (!userDocs.empty) {
-            const userRef = doc(db, 'users', userDocs.docs[0].id);
-            await updateDoc(userRef, { displayName: newName });
+            // Find in users if not in students
+            const userQuery = query(collection(db, 'users'), where('campusId', '==', campusId), where('admissionNumber', '==', admNo));
+            const userSnap = await getDocs(userQuery);
+            if (!userSnap.empty) {
+              for (const uDoc of userSnap.docs) {
+                await updateDoc(uDoc.ref, { displayName: newName });
+              }
+            }
           }
 
           successCount++;
@@ -768,6 +741,7 @@ export default function StudentManagementPage() {
       }
 
       setStatus({ type: 'success', msg: `Name update complete! Success: ${successCount}, Errors: ${errorCount}` });
+      fetchStudents(false);
     } catch (err: any) {
       console.error('Name update error:', err);
       setStatus({ type: 'error', msg: 'Name update failed: ' + err.message });
@@ -786,15 +760,25 @@ export default function StudentManagementPage() {
 
     try {
       const pending: string[] = [];
+      const studentsRef = collection(db, 'students');
+      
       for (const admNo of studentsToProvision) {
-        const studentDoc = await getDoc(doc(db, 'students', admNo));
-        if (!studentDoc.exists() || !studentDoc.data()?.email) {
+        // Use query instead of getDoc by ID
+        const q = query(studentsRef, where('admissionNumber', '==', admNo), where('campusId', '==', campusId));
+        const snap = await getDocs(q);
+        
+        if (snap.empty) {
           pending.push(admNo);
+        } else {
+          const studentData = snap.docs[0].data();
+          if (!studentData.email) {
+            pending.push(admNo);
+          }
         }
       }
 
       if (pending.length === 0) {
-        setStatus({ type: 'success', msg: `All ${studentsToProvision.length} accounts have been provisioned!` });
+        setStatus({ type: 'success', msg: `All specified accounts have been provisioned!` });
       } else {
         setStatus({ type: 'error', msg: `${pending.length} accounts are still pending: ${pending.join(', ')}` });
       }
@@ -829,15 +813,6 @@ export default function StudentManagementPage() {
 
       setStatus({ type: 'success', msg: `Starting provisioning for ${studentsToProvision.length} students...` });
 
-      let secondaryApp;
-      try {
-        secondaryApp = initializeApp(firebaseConfig, 'SecondaryApp');
-      } catch (e) {
-        // App already exists, search for it
-        secondaryApp = getApp('SecondaryApp');
-      }
-      const secondaryAuth = getAuth(secondaryApp);
-      
       let successCount = 0;
       let errorCount = 0;
 
@@ -851,32 +826,31 @@ export default function StudentManagementPage() {
         const studentId = student.id!;
 
         try {
-          // Create user with retry for rate limits
-          let userCredential;
-          let retries = 5;
-          let backoff = 10000;
-          while (retries > 0) {
-            try {
-              userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-              break;
-            } catch (err: any) {
-              if (err.code === 'auth/too-many-requests') {
-                retries--;
-                if (retries === 0) throw err;
-                console.log(`Rate limited for ${admNo}, waiting ${backoff / 1000}s before retry...`);
-                setStatus({ type: 'success', msg: `Rate limit hit. Waiting ${backoff / 1000}s before retrying ${admNo}...` });
-                await new Promise(resolve => setTimeout(resolve, backoff));
-                backoff *= 2; 
-              } else {
-                throw err;
-              }
-            }
-          }
-          
-          if (!userCredential) throw new Error('Failed to create user credential');
+          // Create user via backend API
+          const response = await fetch('/api/admin/create-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              password,
+              name: studentName,
+              role: 'student'
+            })
+          });
 
-          const uid = userCredential.user.uid;
-          await updateProfile(userCredential.user, { displayName: studentName });
+          const result = await response.json();
+          if (!response.ok) {
+            // Check if user already exists
+            if (result.error?.includes('email-already-in-use') || result.error?.includes('already exists')) {
+              // Get user profile to handle existing accounts
+              await updateDoc(doc(db, 'students', studentId), { email });
+              successCount++;
+              continue;
+            }
+            throw new Error(result.error || 'Failed to create student in Auth');
+          }
+
+          const uid = result.uid;
           
           // Update student doc
           await updateDoc(doc(db, 'students', studentId), { email });
@@ -892,21 +866,11 @@ export default function StudentManagementPage() {
             createdAt: new Date().toISOString()
           }, { merge: true });
           
-          await secondaryAuth.signOut();
           successCount++;
           setStatus({ type: 'success', msg: `Provisioned ${successCount}/${studentsToProvision.length}...` });
         } catch (err: any) {
-          if (err.code === 'auth/email-already-in-use' || err.code === 'auth/multi-factor-auth-required') {
-            const msg = err.code === 'auth/multi-factor-auth-required' 
-              ? `Account exists and has MFA for ${admNo}, updating student doc...`
-              : `Account already exists for ${admNo}, updating student doc...`;
-            console.log(msg);
-            await updateDoc(doc(db, 'students', studentId), { email });
-            successCount++;
-          } else {
-            console.error(`Failed to provision ${admNo}:`, err);
-            errorCount++;
-          }
+          console.error(`Failed to provision ${admNo}:`, err);
+          errorCount++;
         }
         
         // Short delay to respect Firebase Auth rate limits in batch creation

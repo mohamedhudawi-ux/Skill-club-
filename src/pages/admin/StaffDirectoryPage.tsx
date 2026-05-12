@@ -13,7 +13,7 @@ import { addStaffMembers } from '../../addStaff';
 import { useAuth } from '../../AuthContext';
 
 export default function StaffDirectoryPage() {
-  const { campusId } = useAuth();
+  const { campusId, isMasterAdmin } = useAuth();
   const [staff, setStaff] = React.useState<UserProfile[]>([]);
   const [deleteConfirm, setDeleteConfirm] = React.useState<string | null>(null);
   const [editingStaff, setEditingStaff] = useState<UserProfile | null>(null);
@@ -28,17 +28,28 @@ export default function StaffDirectoryPage() {
   );
 
   React.useEffect(() => {
-    if (!campusId) return;
+    if (!campusId && !isMasterAdmin) return;
     const fetchStaff = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'users'), where('campusId', '==', campusId), where('role', 'in', ['staff', 'academic', 'safa'])));
+        const staffRef = collection(db, 'users');
+        const roles = ['staff', 'academic', 'safa', 'admin', 'master_admin', 'treasurer'];
+        const q = isMasterAdmin 
+          ? query(staffRef, where('role', 'in', roles))
+          : query(staffRef, where('campusId', '==', campusId), where('role', 'in', roles));
+          
+        const snap = await getDocs(q);
         setStaff(snap.docs.map(doc => ({ ...doc.data(), uid: doc.id } as UserProfile)));
       } catch (error) {
         console.error('Error fetching staff:', error);
+        if (error instanceof Error && error.message.includes('Missing or insufficient permissions')) {
+          setStatus({ type: 'error', msg: 'Access Denied: You do not have permission to view staff members.' });
+        } else {
+          setStatus({ type: 'error', msg: 'An error occurred while fetching staff names.' });
+        }
       }
     };
     fetchStaff();
-  }, [campusId]);
+  }, [campusId, isMasterAdmin]);
 
   const handleUpdateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,8 +172,8 @@ export default function StaffDirectoryPage() {
               <tr key={member.uid} className="hover:bg-stone-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <img src={member.photoURL || `https://ui-avatars.com/api/?name=${member.displayName}&background=random`} className="w-8 h-8 rounded-full" alt="" />
-                    <span className="font-bold text-stone-900">{member.displayName}</span>
+                    <img src={member.photoURL || `https://ui-avatars.com/api/?name=${member.displayName || member.email}&background=random`} className="w-8 h-8 rounded-full" alt="" />
+                    <span className="font-bold text-stone-900">{member.displayName || member.email || 'No Name'}</span>
                   </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-stone-500">{member.phone}</td>
