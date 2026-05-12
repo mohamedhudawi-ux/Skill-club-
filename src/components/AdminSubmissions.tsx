@@ -71,11 +71,14 @@ export function AdminSubmissions() {
         const subDoc = await transaction.get(subRef);
         if (!subDoc.exists()) throw new Error('Submission not found');
 
+        const studentDoc = (action === 'approved' && studentRef) ? await transaction.get(studentRef) : null;
+        const userDoc = (action === 'approved' && userRef) ? await transaction.get(userRef) : null;
+
         const currentStatus = subDoc.data().status;
         if (currentStatus !== 'pending') throw new Error('Already processed');
 
-        if (action === 'approved' && studentRef) {
-          const studentDoc = await transaction.get(studentRef);
+        // PERFORM WRITES
+        if (action === 'approved' && studentRef && studentDoc && studentDoc.exists()) {
           const studentData = studentDoc.data() as Student;
           const currentTotal = studentData.totalPoints || 0;
           const currentCatPoints = studentData.categoryPoints?.[submission.category] || 0;
@@ -95,14 +98,11 @@ export function AdminSubmissions() {
         });
 
         // Update users collection if needed
-        if (action === 'approved' && userRef) {
-          const userSnap = await transaction.get(userRef);
-          if (userSnap.exists()) {
-            const currentTotal = userSnap.data().totalPoints || 0;
-            transaction.update(userRef, {
-              totalPoints: currentTotal + points
-            });
-          }
+        if (action === 'approved' && userRef && userDoc && userDoc.exists()) {
+          const currentTotal = userDoc.data().totalPoints || 0;
+          transaction.update(userRef, {
+            totalPoints: currentTotal + points
+          });
         }
       });
 
