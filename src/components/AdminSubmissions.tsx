@@ -57,6 +57,15 @@ export function AdminSubmissions() {
     setProcessingId(submission.id);
     setStatus(null);
     try {
+        let studentRef = null;
+        let userRef = null;
+        if (action === 'approved') {
+          const studentQ = query(collection(db, 'students'), where('admissionNumber', '==', submission.admissionNumber));
+          const studentSnap = await getDocs(studentQ);
+          if (!studentSnap.empty) studentRef = studentSnap.docs[0].ref;
+          userRef = doc(db, 'users', submission.studentUid);
+        }
+
       await runTransaction(db, async (transaction) => {
         const subRef = doc(db, 'workSubmissions', submission.id);
         const subDoc = await transaction.get(subRef);
@@ -65,26 +74,16 @@ export function AdminSubmissions() {
         const currentStatus = subDoc.data().status;
         if (currentStatus !== 'pending') throw new Error('Already processed');
 
-        let studentRef = null;
-        let userRef = null;
-        if (action === 'approved') {
-          // Find student by admissionNumber field instead of ID
-          const studentQ = query(collection(db, 'students'), where('admissionNumber', '==', submission.admissionNumber));
-          const studentSnap = await getDocs(studentQ);
-          
-          if (!studentSnap.empty) {
-            studentRef = studentSnap.docs[0].ref;
-            const studentData = studentSnap.docs[0].data() as Student;
-            const currentTotal = studentData.totalPoints || 0;
-            const currentCatPoints = studentData.categoryPoints?.[submission.category] || 0;
+        if (action === 'approved' && studentRef) {
+          const studentDoc = await transaction.get(studentRef);
+          const studentData = studentDoc.data() as Student;
+          const currentTotal = studentData.totalPoints || 0;
+          const currentCatPoints = studentData.categoryPoints?.[submission.category] || 0;
             
-            transaction.update(studentRef, {
-              totalPoints: currentTotal + points,
-              [`categoryPoints.${submission.category}`]: currentCatPoints + points
-            });
-          }
-          
-          userRef = doc(db, 'users', submission.studentUid);
+          transaction.update(studentRef, {
+            totalPoints: currentTotal + points,
+            [`categoryPoints.${submission.category}`]: currentCatPoints + points
+          });
         }
 
         // Update submission

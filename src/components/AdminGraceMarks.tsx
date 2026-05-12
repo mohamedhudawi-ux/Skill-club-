@@ -74,10 +74,16 @@ export function AdminGraceMarks() {
     setProcessingId(application.id);
     setStatus(null);
     try {
-      // Fetch user reference outside transaction
+      // Fetch user and student references outside transaction
       const usersQuery = query(collection(db, 'users'), where('admissionNumber', '==', application.admissionNumber));
       const userDocs = await getDocs(usersQuery);
       const userRef = !userDocs.empty ? doc(db, 'users', userDocs.docs[0].id) : null;
+      
+      const studentQ = query(collection(db, 'students'), where('admissionNumber', '==', application.admissionNumber));
+      const studentSnap = await getDocs(studentQ);
+      
+      if (action === 'approved' && studentSnap.empty) throw new Error('Student not found');
+      const studentRef = studentSnap.empty ? null : studentSnap.docs[0].ref;
 
       await runTransaction(db, async (transaction) => {
         const appRef = doc(db, 'graceMarkApplications', application.id!);
@@ -85,31 +91,22 @@ export function AdminGraceMarks() {
         if (!appDoc.exists()) throw new Error('Application not found');
         if (appDoc.data().status !== 'pending') throw new Error('Already processed');
 
-        let studentRef = null;
-        if (action === 'approved') {
-          // Find student by admissionNumber field instead of ID
-          const studentQ = query(collection(db, 'students'), where('admissionNumber', '==', application.admissionNumber));
-          const studentSnap = await getDocs(studentQ);
-          
-          if (studentSnap.empty) throw new Error('Student not found');
-          studentRef = studentSnap.docs[0].ref;
-          const studentData = studentSnap.docs[0].data() as Student;
+        if (action === 'approved' && studentRef) {
+          const studentDoc = await transaction.get(studentRef);
+          const studentData = studentDoc.data() as Student;
 
           const pointsNeeded = application.marksToAdd * 100;
           const currentPoints = studentData.totalPoints || 0;
-
-          if (currentPoints < pointsNeeded) {
-            throw new Error(`Insufficient points. Student has ${currentPoints} but needs ${pointsNeeded}.`);
-          }
+          const currentCatPoints = studentData.categoryPoints?.[application.category] || 0;
 
           transaction.update(studentRef, {
-            totalPoints: currentPoints - pointsNeeded
+            totalPoints: currentPoints + pointsNeeded,
+            [`categoryPoints.${application.category}`]: currentCatPoints + pointsNeeded
           });
-
-          // Update user profile if exists
+          
           if (userRef) {
             transaction.update(userRef, {
-              totalPoints: currentPoints - pointsNeeded
+              totalPoints: currentPoints + pointsNeeded
             });
           }
         }

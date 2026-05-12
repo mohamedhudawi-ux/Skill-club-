@@ -165,7 +165,7 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         <Route path="/master-dashboard" element={
-          <ProtectedRoute requiredRole="master_admin">
+          <ProtectedRoute requiredRole="admin">
             <MasterDashboard />
           </ProtectedRoute>
         } />

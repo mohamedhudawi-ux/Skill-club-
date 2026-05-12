@@ -9,6 +9,11 @@ service cloud.firestore {
     function isAcademic() { return isSignedIn() && (getUserData().role == 'academic' || isAdmin()); }
     function isStudent() { return isSignedIn() && getUserData().role == 'student'; }
 
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
     match /users/{userId} {
       allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
