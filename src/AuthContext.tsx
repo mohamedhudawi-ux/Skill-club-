@@ -59,36 +59,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           if (userDoc.exists()) {
             const data = userDoc.data() as UserProfile;
-            // Ensure safa@skill.edu has safa role and mdthaha213@gmail.com has master_admin role
+            // Ensure admin@skill.edu has admin role
             const userEmail = firebaseUser.email?.toLowerCase() || '';
-            const isMasterAdminEmail = userEmail === 'mdthaha213@gmail.com' || userEmail === 'thaha@skill.edu' || userEmail === 'mdthaha@skill.edu' || userEmail === 'thahamd@skill.edu';
-            const isAdminEmail = isMasterAdminEmail || userEmail === 'admin@skill.edu' || userEmail === 'admin@safa.edu';
+            const isAdminEmail = userEmail === 'admin@skill.edu' || userEmail === 'mdthaha213@gmail.com';
             const isSafaEmail = userEmail === 'safa@skill.edu' || userEmail.endsWith('@safa.edu') || userEmail === 'safa@safa.edu';
             const isStaffEmail = userEmail.endsWith('@staff.edu') || 
               ['sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 'anasp@skill.edu', 
                'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 'zakir@skill.edu', 'nayaz@skill.edu', 
                'saifullah@skill.edu', 'saifullahk@skill.edu', 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 
                'salman@skill.edu', 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 
-               'jawad@skill.edu', 'thahamd@skill.edu', 'mdthaha213@gmail.com', 'treasurer@skill.edu'].includes(userEmail);
+               'jawad@skill.edu', 'treasurer@skill.edu'].includes(userEmail);
             const isSkillEduEmail = userEmail.endsWith('@skill.edu');
             const isAcademicEmail = userEmail.endsWith('@academic.edu') || userEmail === 'academic@skill.edu';
             
             let finalProfile = data;
             
             try {
-              if (isMasterAdminEmail && data.role !== 'master_admin') {
-                finalProfile = { ...data, role: 'master_admin' as UserRole };
-                await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
-              } else if (isAdminEmail && data.role !== 'admin' && data.role !== 'master_admin') {
+              if (isAdminEmail && data.role !== 'admin') {
                 finalProfile = { ...data, role: 'admin' as UserRole };
                 await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
-              } else if (isSafaEmail && data.role !== 'safa' && data.role !== 'admin' && data.role !== 'master_admin') {
+              } else if (isSafaEmail && data.role !== 'safa' && data.role !== 'admin') {
                 finalProfile = { ...data, role: 'safa' as UserRole };
                 await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
-              } else if (isAcademicEmail && data.role !== 'academic' && data.role !== 'admin' && data.role !== 'master_admin') {
+              } else if (isAcademicEmail && data.role !== 'academic' && data.role !== 'admin') {
                 finalProfile = { ...data, role: 'academic' as UserRole };
                 await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
-              } else if (isStaffEmail && data.role !== 'staff' && data.role !== 'admin' && data.role !== 'master_admin' && data.role !== 'safa' && data.role !== 'academic') {
+              } else if (isStaffEmail && data.role !== 'staff' && data.role !== 'admin' && data.role !== 'safa' && data.role !== 'academic') {
                 const role = userEmail === 'treasurer@skill.edu' ? 'treasurer' : 'staff';
                 finalProfile = { ...data, role: role as UserRole };
                 await setDoc(doc(db, 'users', firebaseUser.uid), finalProfile);
@@ -238,16 +234,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     profile,
     loading,
-    isAdmin: profile?.role === 'admin' || profile?.role === 'master_admin',
-    isStaff: profile?.role === 'staff' || profile?.role === 'admin' || profile?.role === 'master_admin' || profile?.role === 'treasurer' || profile?.role === 'academic' || profile?.role === 'safa',
-    isSafa: profile?.role === 'safa' || profile?.role === 'admin' || profile?.role === 'master_admin',
+    isAdmin: profile?.role === 'admin',
+    isStaff: profile?.role === 'staff' || profile?.role === 'admin' || profile?.role === 'treasurer' || profile?.role === 'academic' || profile?.role === 'safa',
+    isSafa: profile?.role === 'safa' || profile?.role === 'admin',
     isStudent: profile?.role === 'student',
-    isAcademic: profile?.role === 'academic' || profile?.role === 'admin' || profile?.role === 'master_admin',
-    isMasterAdmin: profile?.role === 'master_admin',
+    isAcademic: profile?.role === 'academic' || profile?.role === 'admin',
+    isMasterAdmin: false,
     campusId: activeCampusId,
     currentCampus,
     switchCampus: (cid: string) => {
-      if (profile?.role === 'master_admin') {
+      if (profile?.role === 'admin') {
         setSelectedCampusId(cid);
       }
     }

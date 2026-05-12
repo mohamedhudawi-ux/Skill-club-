@@ -1,271 +1,110 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function getUserData() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function isAdmin() { return isSignedIn() && getUserData().role == 'admin'; }
+    function isStaff() { return isSignedIn() && (getUserData().role == 'staff' || getUserData().role == 'treasurer' || isAdmin()); }
+    function isSafa() { return isSignedIn() && (getUserData().role == 'safa' || isAdmin()); }
+    function isAcademic() { return isSignedIn() && (getUserData().role == 'academic' || isAdmin()); }
+    function isStudent() { return isSignedIn() && getUserData().role == 'student'; }
+
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
     
-    // ASSUMED DATA MODEL
-    // ===============================================================
-    // User: uid, email, role (student, staff, safa, admin, academic), admissionNumber?, totalPoints?
-    // Student: admissionNumber, name, dob, fatherName, address, phone, email, photoURL, class, totalPoints, categoryPoints
-    // SkillClubEntry: studentAdmissionNumber, category, points, description, addedBy, timestamp
-    // Program: title, date, description, addedBy, timestamp
-    // GalleryItem: url, caption, uploadedBy, timestamp
-    // Club: name, description, logoUrl
-    // Board: name, description
-    // WorkSubmission: studentUid, studentName, admissionNumber, title, description, fileUrl, status, pointsAwarded, reviewedBy, timestamp
-    // GraceMarkApplication: studentUid, studentName, admissionNumber, category, reason, status, timestamp
-    // Query: studentUid, studentName, message, status, timestamp, reply?
-    // Transaction: type, amount, description, date, category, addedBy, timestamp
-    // Notification: recipientUid, title, message, timestamp, read
-    // SiteContent: key, value
-    // ===============================================================
-
-    // Helper Functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function getUserData() {
-      let path = /databases/$(database)/documents/users/$(request.auth.uid);
-      return exists(path) ? get(path).data : {};
-    }
-
-    function hasRole(role) {
-      return isAuthenticated() && (isMasterAdmin() || getUserData().role == role);
-    }
-
-    function isMasterAdmin() {
-      return isAuthenticated() && request.auth.token.email != null && (
-        request.auth.token.email.lower() == "mdthaha213@gmail.com" ||
-        request.auth.token.email.lower() == "thaha@skill.edu" ||
-        request.auth.token.email.lower() == "mdthaha@skill.edu" ||
-        request.auth.token.email.lower() == "thahamd@skill.edu"
-      );
-    }
-
-    function isMasterAdminEmail(email) {
-      let lowEmail = email != null ? email.lower() : '';
-      return lowEmail == "mdthaha213@gmail.com" || 
-             lowEmail == "thaha@skill.edu" || 
-             lowEmail == "mdthaha@skill.edu" || 
-             lowEmail == "thahamd@skill.edu";
-    }
-
-    function isAdminEmail(email) {
-      let lowEmail = email != null ? email.lower() : '';
-      return isMasterAdminEmail(email) || 
-             lowEmail == "admin@skill.edu" || 
-             lowEmail == "admin@safa.edu";
-    }
-
-    function isSafaEmail(email) {
-      let lowEmail = email != null ? email.lower() : '';
-      return lowEmail == 'safa@skill.edu' || lowEmail.endsWith('@safa.edu') || lowEmail == 'safa@safa.edu';
-    }
-
-    function isAcademicEmail(email) {
-      let lowEmail = email != null ? email.lower() : '';
-      return lowEmail.endsWith('@academic.edu') || lowEmail == 'academic@skill.edu';
-    }
-
-    function isStaffEmail(email) {
-      let lowEmail = email != null ? email.lower() : '';
-      return lowEmail.endsWith('@staff.edu') || 
-             lowEmail == 'treasurer@skill.edu' ||
-             lowEmail in ['sharfuddin@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'];
-    }
-
-    function isAdmin() {
-      return isMasterAdmin() || hasRole('admin') || (isAuthenticated() && request.auth.token.email != null && (
-             request.auth.token.email.lower() == "mdthaha213@gmail.com" ||
-             request.auth.token.email.lower() == "admin@skill.edu" ||
-             request.auth.token.email.lower() == "admin@safa.edu"));
-    }
-
-    function isStaff() {
-      return isAdmin() || hasRole('staff') || hasRole('treasurer') || 
-             (isAuthenticated() && request.auth.token.email != null && (
-               request.auth.token.email.lower().endsWith('@staff.edu') ||
-               request.auth.token.email.lower() == 'treasurer@skill.edu' ||
-               request.auth.token.email.lower() in [
-                 'sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 
-                 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 
-                 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 
-                 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 
-                 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'
-               ]
-             ));
-    }
-
-    function isSafa() {
-      return isStaff() || hasRole('safa');
-    }
-
-    function isAcademic() {
-      return isStaff() || hasRole('academic');
-    }
-
-    function isStudent() {
-      return hasRole('student') || isSafa() || isAcademic();
-    }
-
-    function isOwner(uid) {
-      return isAuthenticated() && request.auth.uid == uid;
-    }
-
-    function isStudentOwner(admissionNumber) {
-      return isAuthenticated() && getUserData().admissionNumber == admissionNumber;
-    }
-
-    function sameCampus(resourceData) {
-      let isAllowed = (isMasterAdmin() || isAdmin());
-      let userCampus = getUserData().campusId != null ? getUserData().campusId : 'default';
-      let finalResourceCampus = resourceData.campusId != null ? resourceData.campusId : 'default';
-      return isAllowed || (isAuthenticated() && userCampus == finalResourceCampus);
-    }
-
-    // Validation Functions
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'campusId', 'createdAt']) &&
-             data.uid is string &&
-             data.email is string &&
-             data.displayName is string &&
-             data.role in ['admin', 'staff', 'safa', 'student', 'academic', 'master_admin', 'treasurer'];
-    }
-
-    // Rules
-    
-    // Campuses Collection
     match /campuses/{campusId} {
-      allow read: if true;
-      allow write: if isMasterAdmin();
-    }
-
-    // Users Collection
-    match /users/{uid} {
-      allow get: if isAuthenticated();
-      allow list: if isMasterAdmin() || isStaff();
-      allow create: if isAuthenticated() && isValidUser(request.resource.data);
-      allow update: if isAuthenticated() && (
-        isMasterAdmin() ||
-        isAdmin() || 
-        isStaff() || 
-        (isOwner(uid) && (
-          (isMasterAdminEmail(request.auth.token.email) && request.resource.data.role == 'master_admin') ||
-          (isAdminEmail(request.auth.token.email) && request.resource.data.role == 'admin') ||
-          (isSafaEmail(request.auth.token.email) && request.resource.data.role == 'safa') ||
-          (isAcademicEmail(request.auth.token.email) && request.resource.data.role == 'academic') ||
-          (isStaffEmail(request.auth.token.email) && (request.resource.data.role == 'staff' || request.resource.data.role == 'treasurer')) ||
-          (request.resource.data.role == resource.data.role && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'phone', 'dob', 'address', 'bio', 'socialLinks', 'dailyAccessCount', 'lastAccessDate']))
-        )) ||
-        ((isSafa() || isAcademic() || isStaff()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'badges', 'totalPoints']))
-      );
-      allow delete: if isMasterAdmin() || isAdmin() || isStaff();
-    }
-
-    // Students Collection
-    match /students/{admissionNumber} {
-      allow read: if true;
-      allow create: if isMasterAdmin() || (sameCampus(request.resource.data) && (isStaff() || isAcademic() || isAdmin()));
-      allow update: if isMasterAdmin() || (sameCampus(request.resource.data) && sameCampus(resource.data) && (
-        isAdmin() ||
-        isStaff() ||
-        isAcademic() ||
-        isSafa() ||
-        (isStudentOwner(admissionNumber) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoURL', 'name', 'class', 'fatherName', 'dob', 'address', 'phone', 'bio', 'socialLinks']))
-      ));
-      allow delete: if isMasterAdmin() || (sameCampus(resource.data) && (isAdmin() || isStaff()));
-    }
-
-    // Skill Club Entries
-    match /skillClubEntries/{entryId} {
-      allow read: if true;
-      allow create, update, delete: if isAuthenticated() && (isAcademic() || isAdmin() || isSafa());
-    }
-
-    // Queries
-    match /queries/{queryId} {
-      allow read: if isAdmin() || isStaff() || isSafa() || isAcademic() || (isAuthenticated() && resource.data.studentUid == request.auth.uid);
-      allow create: if isAuthenticated() && request.resource.data.studentUid == request.auth.uid;
-      allow update: if isAdmin() || isStaff() || isSafa() || isAcademic() || (isAuthenticated() && resource.data.studentUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['message', 'timestamp', 'reply', 'status']));
-      allow delete: if isAdmin() || isStaff() || (isAuthenticated() && resource.data.studentUid == request.auth.uid);
-    }
-
-    // Work Submissions
-    match /workSubmissions/{submissionId} {
-      allow read: if (isAuthenticated() && (isAdminEmail(request.auth.token.email) || isStaffEmail(request.auth.token.email) || isSafaEmail(request.auth.token.email) || isAcademicEmail(request.auth.token.email))) || (isAuthenticated() && (resource.data.studentUid == request.auth.uid || (getUserData().role == 'student' && getUserData().admissionNumber == resource.data.admissionNumber))) || resource.data.status == 'approved';
-      allow create: if isAuthenticated() && request.resource.data.studentUid == request.auth.uid;
-      allow update: if isAdmin() || isStaff() || isSafa() || isAcademic() || (isAuthenticated() && resource.data.studentUid == request.auth.uid && resource.data.status == 'pending');
-      allow delete: if isAdmin() || isStaff() || (isAuthenticated() && resource.data.studentUid == request.auth.uid && resource.data.status == 'pending');
-    }
-
-    // Grace Mark Applications
-    match /graceMarkApplications/{applicationId} {
-      allow read: if isAdmin() || isStaff() || isSafa() || isAcademic() || (isAuthenticated() && (resource.data.studentUid == request.auth.uid || (getUserData().role == 'student' && getUserData().admissionNumber == resource.data.admissionNumber)));
-      allow create: if isAuthenticated() && request.resource.data.studentUid == request.auth.uid;
-      allow update: if isAdmin() || isStaff() || isSafa() || isAcademic() || (isAuthenticated() && resource.data.studentUid == request.auth.uid && resource.data.status == 'pending');
-      allow delete: if isAdmin() || isStaff() || (isAuthenticated() && resource.data.studentUid == request.auth.uid && resource.data.status == 'pending');
-    }
-
-    // Clubs, Boards, Office Bearers, Members, Programs, Gallery
-    match /clubs/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-    match /boards/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-    match /officeBearers/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-    match /members/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-    match /clubMembers/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-    match /boardMembers/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-    match /programs/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-    match /gallery/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-    match /calendar/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-    match /resources/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-
-    // Transactions
-    match /treasury/{transactionId} {
-      allow read: if isSafa() || isAdmin();
-      allow create, update, delete: if isSafa() || isAdmin();
-    }
-
-    // Notifications
-    match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && (resource == null || resource.data.recipientUid == request.auth.uid);
-      allow create: if isStaff() || isSafa() || isAdmin() || isAcademic() || isAuthenticated();
-      allow update: if isAuthenticated() && resource.data.recipientUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.recipientUid == request.auth.uid);
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
     
-    // Login Notifications
-    match /loginNotifications/{notificationId} {
-      allow read: if isAdmin();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
+    match /students/{admissionNumber} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isStaff();
     }
-
-    // Site Content & Settings
-    match /siteContent/{id} { allow read: if true; allow write: if isAdmin() || isStaff(); }
-    match /settings/{id} { allow read: if true; allow write: if isAdmin(); }
-
-    // Reports
-    match /reports/{id} { allow read, write: if isSafa() || isAdmin(); }
-    match /monthlyReports/{id} { allow read, write: if isSafa() || isAdmin(); }
-    match /clubPointEntries/{id} { allow read: if true; allow write: if isSafa() || isAdmin(); }
-
-    // CCE Marks
+    
     match /cceMarks/{markId} {
-      allow read: if isAcademic() || isAdmin() || (isAuthenticated() && resource.data.studentId == getUserData().admissionNumber);
-      allow write: if isAcademic() || isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isStaff() || isAcademic();
     }
-
-    // Class Dues
-    match /classDues/{id} {
-      allow read: if isAuthenticated();
-      allow write: if isSafa() || isAdmin();
+    
+    match /skillClubEntries/{entryId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isStaff() || isSafa();
     }
-
-    // Resumes
-    match /resumes/{resumeId} {
-      allow read: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid);
-      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
-      allow update: if isAuthenticated() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    
+    match /programs/{programId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isStaff() || isSafa();
+    }
+    
+    match /gallery/{itemId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /clubs/{clubId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /clubMembers/{memberId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /boards/{boardId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /boardMembers/{memberId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /workSubmissions/{submissionId} {
+      allow read: if isSignedIn() && (resource.data.studentUid == request.auth.uid || isAdmin() || isStaff() || isSafa());
+      allow create: if isSignedIn() && request.resource.data.studentUid == request.auth.uid;
+      allow update: if isSignedIn() && (isAdmin() || isStaff() || isSafa() || resource.data.studentUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+    
+    match /officeBearers/{bearerId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /siteContent/{contentId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /queries/{queryId} {
+      allow read: if isSignedIn() && (resource.data.studentUid == request.auth.uid || isAdmin() || isStaff());
+      allow create: if isSignedIn() && request.resource.data.studentUid == request.auth.uid;
+      allow update: if isSignedIn() && (isAdmin() || isStaff() || resource.data.studentUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+    
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (resource.data.recipientUid == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    
+    match /clubPointEntries/{entryId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isStaff();
+    }
+    
+    match /monthlyReports/{reportId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isStaff();
+    }
+    
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }
