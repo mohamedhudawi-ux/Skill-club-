@@ -45,13 +45,19 @@ service cloud.firestore {
     }
 
     function isMasterAdmin() {
-      return isAuthenticated() && 
+      // Check role directly from DB if token email claim is missing/different
+      let roleMatch = isAuthenticated() && getUserData().role == 'master_admin';
+      
+      // Check email
+      let emailMatch = isAuthenticated() && 
              request.auth.token.email != null && (
                request.auth.token.email.lower() == "mdthaha213@gmail.com" ||
                request.auth.token.email.lower() == "thaha@skill.edu" ||
                request.auth.token.email.lower() == "mdthaha@skill.edu" ||
                request.auth.token.email.lower() == "thahamd@skill.edu"
              );
+      
+      return emailMatch || roleMatch;
     }
 
     function isMasterAdminEmail(email) {

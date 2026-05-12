@@ -704,8 +704,8 @@ export default function StudentManagementPage() {
 
       for (const [admNo, newName] of Object.entries(nameMapping)) {
         try {
-          // Query for the student by admissionNumber field
-          const q = query(collection(db, 'students'), where('campusId', '==', campusId), where('admissionNumber', '==', admNo));
+          // Query for the student by admissionNumber field. Remove campusId restriction to find student in any campus.
+          const q = query(collection(db, 'students'), where('admissionNumber', '==', admNo));
           const snap = await getDocs(q);
           
           if (!snap.empty) {
@@ -724,7 +724,7 @@ export default function StudentManagementPage() {
             }
           } else {
             // Find in users if not in students
-            const userQuery = query(collection(db, 'users'), where('campusId', '==', campusId), where('admissionNumber', '==', admNo));
+            const userQuery = query(collection(db, 'users'), where('admissionNumber', '==', admNo));
             const userSnap = await getDocs(userQuery);
             if (!userSnap.empty) {
               for (const uDoc of userSnap.docs) {
