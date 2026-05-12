@@ -34,14 +34,11 @@ service cloud.firestore {
     }
 
     function isMasterAdmin() {
-      return isAuthenticated() && (
-        getUserData().role == 'master_admin' || 
-        (request.auth.token.email != null && (
-          request.auth.token.email.lower() == "mdthaha213@gmail.com" ||
-          request.auth.token.email.lower() == "thaha@skill.edu" ||
-          request.auth.token.email.lower() == "mdthaha@skill.edu" ||
-          request.auth.token.email.lower() == "thahamd@skill.edu"
-        ))
+      return isAuthenticated() && request.auth.token.email != null && (
+        request.auth.token.email.lower() == "mdthaha213@gmail.com" ||
+        request.auth.token.email.lower() == "thaha@skill.edu" ||
+        request.auth.token.email.lower() == "mdthaha@skill.edu" ||
+        request.auth.token.email.lower() == "thahamd@skill.edu"
       );
     }
 

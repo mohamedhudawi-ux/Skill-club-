@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { useSettings } from '../SettingsContext';
 import { Student, SKILL_CLUB_CATEGORIES, SkillClubCategory, SKILL_CLUB_RULES, WorkSubmission } from '../types';
@@ -56,9 +56,17 @@ export function WorkSubmissionForm({ student, initialData, onSuccess, onCancel }
       };
 
       if (initialData?.id) {
-        await updateDoc(doc(db, 'workSubmissions', initialData.id), data);
+        try {
+            await updateDoc(doc(db, 'workSubmissions', initialData.id), data);
+        } catch (error) {
+            handleFirestoreError(error, OperationType.UPDATE, `workSubmissions/${initialData.id}`);
+        }
       } else {
-        await addDoc(collection(db, 'workSubmissions'), data);
+        try {
+            await addDoc(collection(db, 'workSubmissions'), data);
+        } catch (error) {
+            handleFirestoreError(error, OperationType.CREATE, 'workSubmissions');
+        }
       }
       
       setSubmitted(true);
