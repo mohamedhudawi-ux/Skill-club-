@@ -19,6 +19,7 @@ import {
   Instagram,
   Mail,
   Send,
+  Building2,
   Globe,
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';

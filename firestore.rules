@@ -69,19 +69,46 @@ service cloud.firestore {
              lowEmail == "admin@safa.edu";
     }
 
-    function isAdmin() {
-      return isMasterAdmin() || hasRole('admin');
+    function isSafaEmail(email) {
+      let lowEmail = email.lower();
+      return lowEmail == 'safa@skill.edu' || lowEmail.endsWith('@safa.edu') || lowEmail == 'safa@safa.edu';
     }
 
-    function isStaff() {
-      return isAdmin() || hasRole('staff') || 
-             (isAuthenticated() && request.auth.token.email in [
+    function isAcademicEmail(email) {
+      let lowEmail = email.lower();
+      return lowEmail.endsWith('@academic.edu') || lowEmail == 'academic@skill.edu';
+    }
+
+    function isStaffEmail(email) {
+      let lowEmail = email.lower();
+      return lowEmail.endsWith('@staff.edu') || 
+             lowEmail == 'treasurer@skill.edu' ||
+             lowEmail in [
                'sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 
                'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 
                'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 
                'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 
                'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'
-             ]);
+             ];
+    }
+
+    function isAdmin() {
+      return isMasterAdmin() || hasRole('admin');
+    }
+
+    function isStaff() {
+      return isAdmin() || hasRole('staff') || hasRole('treasurer') || 
+             (isAuthenticated() && (
+               request.auth.token.email.lower().endsWith('@staff.edu') ||
+               request.auth.token.email.lower() == 'treasurer@skill.edu' ||
+               request.auth.token.email.lower() in [
+                 'sharfuddin@skill.edu', 'sharafuddin@skill.edu', 'sharafuddinhudawi@skill.edu', 
+                 'anasp@skill.edu', 'zakirhudawi@skill.edu', 'ali@skill.edu', 'masoom@skill.edu', 
+                 'zakir@skill.edu', 'nayaz@skill.edu', 'saifullah@skill.edu', 'saifullahk@skill.edu', 
+                 'irfan@skill.edu', 'shuaib@skill.edu', 'latheef@skill.edu', 'salman@skill.edu', 
+                 'shefil@skill.edu', 'safwan@skill.edu', 'shibli@skill.edu', 'thaha@skill.edu', 'jawad@skill.edu'
+               ]
+             ));
     }
 
     function isSafa() {
@@ -116,7 +143,7 @@ service cloud.firestore {
              data.uid is string &&
              data.email is string &&
              data.displayName is string &&
-             data.role in ['admin', 'staff', 'safa', 'student', 'academic', 'master_admin'];
+             data.role in ['admin', 'staff', 'safa', 'student', 'academic', 'master_admin', 'treasurer'];
     }
 
     // Rules
@@ -139,7 +166,10 @@ service cloud.firestore {
         (isOwner(uid) && (
           (isMasterAdminEmail(request.auth.token.email) && request.resource.data.role == 'master_admin') ||
           (isAdminEmail(request.auth.token.email) && request.resource.data.role == 'admin') ||
-          (request.resource.data.role == resource.data.role && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'phone', 'dob', 'address', 'bio', 'socialLinks']))
+          (isSafaEmail(request.auth.token.email) && request.resource.data.role == 'safa') ||
+          (isAcademicEmail(request.auth.token.email) && request.resource.data.role == 'academic') ||
+          (isStaffEmail(request.auth.token.email) && (request.resource.data.role == 'staff' || request.resource.data.role == 'treasurer')) ||
+          (request.resource.data.role == resource.data.role && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'phone', 'dob', 'address', 'bio', 'socialLinks', 'dailyAccessCount', 'lastAccessDate']))
         )) ||
         ((isSafa() || isAcademic() || isStaff()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'badges', 'totalPoints']))
       );
