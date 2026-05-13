@@ -203,21 +203,35 @@ export function AdminSubmissions() {
                   {sub.fileUrl && (
                     <div className="space-y-4">
                       <div className="flex items-center gap-4">
-                        <a 
-                          href={sub.fileUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700"
-                        >
-                          <ExternalLink size={16} /> View Attached File
-                        </a>
-                        <a 
-                          href={sub.fileUrl} 
-                          download
-                          className="inline-flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-stone-700"
-                        >
-                          <Download size={16} /> Download
-                        </a>
+                        {sub.fileUrl && (
+                          <>
+                            <a 
+                              href={sub.fileUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700"
+                            >
+                              <ExternalLink size={16} /> View Attached File
+                            </a>
+                            <a 
+                              href={sub.fileUrl} 
+                              download
+                              className="inline-flex items-center gap-2 text-sm font-bold text-stone-600 hover:text-stone-700"
+                            >
+                              <Download size={16} /> Download
+                            </a>
+                          </>
+                        )}
+                        {sub.link && (
+                          <a 
+                            href={sub.link.startsWith('http') ? sub.link : `https://${sub.link}`}
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-700"
+                          >
+                            <ExternalLink size={16} /> Open Link
+                          </a>
+                        )}
                       </div>
 
                       {/* Inline Preview */}
