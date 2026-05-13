@@ -249,7 +249,7 @@ export function AdminSubmissions() {
                   </div>
                 </div>
 
-                {sub.status === 'pending' && isAdmin && (
+                {sub.status === 'pending' && (isAdmin || isStaff || isAcademic) && (
                   <div className="flex flex-col gap-3 min-w-[200px] bg-stone-50 p-4 rounded-xl border border-stone-100">
                     <div>
                       <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Award Points</label>

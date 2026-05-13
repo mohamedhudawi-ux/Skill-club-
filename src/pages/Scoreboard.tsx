@@ -149,6 +149,27 @@ export default function Scoreboard() {
     }
   };
 
+  const handlePublishScoreboard = async () => {
+    if (!campusId) return;
+    try {
+      setLoading(true);
+      await addDoc(collection(db, 'publishedScoreboards'), {
+        campusId,
+        month: new Date().getMonth(),
+        year: new Date().getFullYear(),
+        rankings: rankings,
+        clubs: clubs,
+        timestamp: serverTimestamp()
+      });
+      toast.success('Scoreboard published successfully!');
+    } catch (error) {
+      console.error('Error publishing:', error);
+      toast.error('Failed to publish.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
 
@@ -522,7 +543,10 @@ export default function Scoreboard() {
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4">
           {isAdmin && (
-            <div>
+            <div className="flex gap-2">
+              <Button onClick={handlePublishScoreboard} variant="outline" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 flex items-center">
+                Publish Scoreboard
+              </Button>
               {!showConfirm ? (
                 <Button onClick={() => setShowConfirm(true)} variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 flex items-center">
                   <Trash2 size={16} className="mr-2" /> Clear All Points

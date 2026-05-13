@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where, getFirestore } from 'firebase/firestore';
+import { collection, getDocs, getFirestore, limit, query } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import firebaseConfig from './firebase-applet-config.json';
 
@@ -6,14 +6,11 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function checkStudents() {
-  const studentsSnap = await getDocs(collection(db, 'students'));
-  console.log('Total students in collection:', studentsSnap.size);
+  const studentsSnap = await getDocs(query(collection(db, 'students'), limit(10)));
   
-  const class4 = studentsSnap.docs.filter(d => d.data().class === "4");
-  const class5 = studentsSnap.docs.filter(d => d.data().class === "5");
-  
-  console.log('Students in class 4:', class4.length);
-  console.log('Students in class 5:', class5.length);
+  studentsSnap.docs.forEach(d => {
+    console.log('Student ID:', d.id, 'Data:', JSON.stringify(d.data()));
+  });
 }
 
 checkStudents().catch(console.error);
